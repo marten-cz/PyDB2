@@ -1062,7 +1062,7 @@ DB2CursorObj_execute(DB2CursorObj *self, PyObject *args)
 
 	if (rc == SQL_SUCCESS) {
 		;
-	} else if (rc == SQL_SUCCESS_WITH_INFO) {
+	} else if (rc == SQL_SUCCESS_WITH_INFO || rc == SQL_NO_DATA_FOUND) {
 		_DB2CursorObj_fill_Cursor_messages(self);
 	} else {
 		return _DB2CursorObj_Cursor_Error(self, NULL);
