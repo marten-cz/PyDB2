@@ -1,0 +1,35 @@
+
+Gunter Bach
+	renovation with BLOB (2001.04.30)
+
+H.J.	Yim
+	Encourage me to do this (2000.10.04)
+
+Jachym Simecek (IBM Czech Republic)
+	some #ifdef MS_WIN32 ... #endif stuff
+	strcasecmp --> strcmp
+	(MS Visual C++ is said to have no ``strcasecmp'') (2001.06.01)
+
+Jason.Kottler@ihs.gov
+	missing SQL_DATALINK support (2004.06.11)
+
+Nate Park <youlsa@users.sourceforge.net>
+	short errorStr buf in DB2_report_error function (2003.07.15)
+
+Stephan Herschel
+	NULL bugfix (2002.08.15)
+	changes in default username and password (2002.03.28)
+
+Sun-joong Lee
+	BIGINT bug fix (2000.11.22)
+
+Tushar Wagle <WAGLET@uk.ibm.com>
+	NULL bugfix (2002.08.15)
+	error-by-one bugfix (2002.03.19)
+	
+Wojciech Wloszek <w.wloszek@skrzynka.pl>
+	More accurate error reporting about wrong SQL statement (2002.07.01)
+
+Yuval Turgeman
+	Timestamp bug (2003.04.06)
+
