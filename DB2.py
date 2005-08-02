@@ -145,7 +145,8 @@ class Cursor:
 		return tuple(args)
 
 	def _sql_execute(self, func, what, *args):
-		if len(args) == 1 and type(args[0]) == types.TupleType:
+        	# Parameters may be either a list or tuple of values (sequence)
+		if len(args) == 1 and type(args[0]) in (tuple, list):
 			# ( (1, ...), ) --> (1, ...)
 			args = args[0]
 
@@ -198,8 +199,8 @@ class Cursor:
 		for i in range(len(r)):
 			if type(r[i]) == TupleType:
 				r[i] = self._convert_result_col(r[i])
-
-		return list(r)
+		# Returning a tuple for backwards compatibility
+		return tuple(r)
 
 	def fetchmany(self, size=None):
 		if size == None: size = self.arraysize
