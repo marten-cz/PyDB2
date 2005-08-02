@@ -1059,7 +1059,9 @@ DB2CursorObj_execute(DB2CursorObj *self, PyObject *args)
 			}
 		}
 	}
-
+	/*
+	 * SQL_NO_DATA_FOUND is returned when DB2 issues a SQL0000W warning
+	 */
 	if (rc == SQL_SUCCESS) {
 		;
 	} else if (rc == SQL_SUCCESS_WITH_INFO || rc == SQL_NO_DATA_FOUND) {
@@ -2309,8 +2311,10 @@ _DB2CursorObj_prepare_param_vars(DB2CursorObj *self, int numParams, PyObject *pa
 
 		case SQL_BIGINT:
 			CDataType = SQL_C_CHAR;
-
-			if ( PyLong_Check(paramVal) ) {
+			/*
+			 * SQL_BIGINT can accept Python Int types.
+			 */
+			if ( PyLong_Check(paramVal) || PyInt_Check(paramVal) ) {
 				tmpVal = PyObject_Str(paramVal);/* str(long) */
 				ps->bufLen = PyString_Size(tmpVal);
 				ps->buf = MY_MALLOC(sizeof(SQLCHAR) * (ps->bufLen+1));
