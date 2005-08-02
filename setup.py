@@ -40,7 +40,7 @@ if not os.path.exists(db2_root_dir+'include/sqlcli1.h'):
 	print
 
 setup(
-	name="DB2",
+	name="PyDB2",
 	version="1.1.0",
 	description="Python module for IBM DB2",
 	author="Man-Yong (Bryan) Lee",
@@ -48,7 +48,7 @@ setup(
 	license="LGPL",
 	package_dir={'DB2':'.'},
 	py_modules=[ 'DB2' ],
-	ext_modules=[ 
+	ext_modules=[
 		Extension(
 			"_db2",
 			["_db2_module.c"],
