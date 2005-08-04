@@ -696,7 +696,7 @@ DB2ConnObj_dealloc(DB2ConnObj * self)
 {
 	DB2ConnObj_close( self, (PyObject *)NULL );
 
-	PyMem_DEL(self);
+	PyObject_Del(self);
 }
 
 static PyObject *
@@ -864,7 +864,7 @@ DB2CursorObj_dealloc(DB2CursorObj *self)
 	Py_XDECREF(self->description);
 	Py_XDECREF(self->messages);
 
-	PyMem_DEL(self);
+	PyObject_Del(self);
 }
 
 static PyObject *
