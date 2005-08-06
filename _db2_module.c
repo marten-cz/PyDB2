@@ -13,8 +13,8 @@
 
 #ifdef MS_WIN32
 #	include <windows.h>
-#	ifndef unit
-#		define unit unsigned int
+#	ifndef uint 
+#		define uint unsigned int
 #	endif
 #endif /* MS_WIN32 */ 
 
@@ -843,7 +843,7 @@ DB2ConnObj_cursor(DB2ConnObj *self, PyObject *args)
 	} else {
 		Py_DECREF(c->description);
 		Py_DECREF(c->messages);
-		PyObject_Del(c);
+		Py_DECREF(c);
 		/* Connection closed ? */
 		return _DB2ConnObj_Conn_Error(self, NULL);
 	}
