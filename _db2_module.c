@@ -423,6 +423,8 @@ _DB2CursorObj_Cursor_Error(DB2CursorObj *self, PyObject *exc)
 	Py_INCREF(vo);
 	PyErr_SetObject(exc, vo);
 
+	Py_DECREF(t);
+
 	return NULL;
 }
 
