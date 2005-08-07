@@ -392,36 +392,36 @@ determineException(char *sqlState)
 static PyObject *
 _DB2CursorObj_get_Cursor_Error(DB2CursorObj *self, PyObject *exc)
 {
-	PyObject *t, *r;
+	PyObject *t;
 	char *v;
 
 	t = _DB2_GetDiagRec(self->hstmt, SQL_HANDLE_STMT);
 	v = PyString_AsString(PyTuple_GetItem(t, 0));
 
-	if (!exc) { exc = determineException(v); }
+	if (!exc) { 
+		exc = determineException(v);
+	}
 
-	r = PyTuple_New(2);
-
-	/* Py_INCREF(exc); */
-	PyTuple_SetItem(r, 0, exc);
-	PyTuple_SetItem(r, 1, t);
-
-	return r;
+	return Py_BuildValue("(OO)", exc, t);
 }
 
 static PyObject *
 _DB2CursorObj_Cursor_Error(DB2CursorObj *self, PyObject *exc)
 {
-	PyObject *e, *v, *r;
+	PyObject *t, *vo;
+	char *v;
 
-	r = _DB2CursorObj_get_Cursor_Error(self, exc);
+	t = _DB2_GetDiagRec(self->hstmt, SQL_HANDLE_STMT);
+	vo = PyTuple_GetItem(t, 0);
 
-	e = PyTuple_GetItem(r, 0); /* Py_INCREF(e); */
-	v = PyTuple_GetItem(r, 1); Py_INCREF(v);
+	v = PyString_AsString(vo);
 
-	PyErr_SetObject(e, v);
+	if ( !exc ) {
+		exc = determineException(v);
+	}
 
-	Py_DECREF(r);
+	Py_INCREF(vo);
+	PyErr_SetObject(exc, vo);
 
 	return NULL;
 }
