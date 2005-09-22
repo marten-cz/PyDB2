@@ -1,13 +1,18 @@
 /*
 	Python DB API for IBM DB2
 
-	Man-Yong Lee <manyong.lee@gmail.com>, 2000
-	             <yong@linuxkorea.co.kr>
+	Man-Yong Lee <manyong.lee@gmail.com>, 2000-2005
+	             <yong@NewMediaLife.com>
 
 	According to PEP 249 (Python DB API Spec v2.0)
 
+	ChangeLog:
+
+		2005-09-22	use char * instead of void * on Windows in function _SQL_CType_2_PyType
+					I don't know why MS compiler complains about ``unknown size'' of void *
+
  */
-#define __version__	"1.1.0"
+#define __version__	"1.1.1"
 
 #include "Python.h"
 
@@ -1854,7 +1859,11 @@ _SQL_CType_2_PyType(DB2BindStruct *bs, int idx)
 	PyObject *val, *tmpVal;
 	char *tempStr;
 	int size;
+#ifdef MS_WIN32
+	SQLPOINTER buf = (SQLPOINTER)((char *)bs->buf + (bs->bufLen * idx));
+#else
 	SQLPOINTER buf = (SQLPOINTER)((void *)bs->buf + (bs->bufLen * idx));
+#endif
 
 	DATE_STRUCT dateSt;
 	TIME_STRUCT timeSt;
