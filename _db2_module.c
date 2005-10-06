@@ -413,21 +413,17 @@ _DB2CursorObj_get_Cursor_Error(DB2CursorObj *self, PyObject *exc)
 static PyObject *
 _DB2CursorObj_Cursor_Error(DB2CursorObj *self, PyObject *exc)
 {
-	PyObject *t, *vo;
+	PyObject *t;
 	char *v;
 
 	t = _DB2_GetDiagRec(self->hstmt, SQL_HANDLE_STMT);
-	vo = PyTuple_GetItem(t, 0);
-
-	v = PyString_AsString(vo);
+	v = PyString_AsString(PyTuple_GetItem(t, 0));
 
 	if ( !exc ) {
 		exc = determineException(v);
 	}
 
-	Py_INCREF(vo);
-	PyErr_SetObject(exc, vo);
-
+	PyErr_SetObject(exc, t);
 	Py_DECREF(t);
 
 	return NULL;
@@ -447,7 +443,6 @@ _DB2CursorObj_fill_Cursor_messages(DB2CursorObj *self)
 	PyTuple_SetItem(r, 1, t);
 
 	PyList_Append( self->messages, r);
-
 	Py_DECREF(r);
 
 	return NULL;
@@ -465,6 +460,8 @@ _DB2ConnObj_Conn_Error(DB2ConnObj *self, PyObject *exc)
 	if (!exc) { exc = determineException(v); }
 
 	PyErr_SetObject(exc, t);
+	Py_DECREF(t);
+
 	return NULL;
 }
 
@@ -480,9 +477,14 @@ _DB2ConnObj_Disconnected_Error(DB2ConnObj *self)
 	PyTuple_SetItem(t, 2, PyString_FromString("Disconnected"));
 
 	PyErr_SetObject(DB2_Error, t);
+	Py_DECREF(t);
+
 	return NULL;
 }
 
+/*
+ * _DB2_GetDiagRec: NEW REFERENCE
+ */
 static PyObject *
 _DB2_GetDiagRec(SQLHANDLE handle, SQLSMALLINT handleType)
 {
@@ -1025,6 +1027,7 @@ DB2CursorObj_execute(DB2CursorObj *self, PyObject *args)
 				);
 
 			PyErr_SetObject(DB2_ProgrammingError, t);
+			Py_DECREF(t);
 			return NULL;
 		}
 
@@ -1853,6 +1856,9 @@ _DB2CursorObj_bind_col(DB2CursorObj *self, int numCols, int arraySize)
 	return 1;
 }
 
+/*
+ * _SQL_CType_2_PyType: NEW REFERENCE
+ */
 static PyObject *
 _SQL_CType_2_PyType(DB2BindStruct *bs, int idx)
 {
@@ -1998,6 +2004,9 @@ _SQL_CType_2_PyType(DB2BindStruct *bs, int idx)
 	return val;
 }
 
+/*
+ * _SQLType_2_PyType: NEW REFERENCE
+ */
 static PyObject *
 _SQLType_2_PyType(DB2ParamStruct *ps)
 {
@@ -2057,6 +2066,9 @@ _SQLType_2_PyType(DB2ParamStruct *ps)
 	return val;
 }
 
+/*
+ * _DB2CursorObj_retrieve_one_row: NEW REFERENCE
+ */
 static PyObject *
 _DB2CursorObj_retrieve_one_row(DB2CursorObj *self, int numCols, int idx)
 {
@@ -2078,6 +2090,9 @@ _DB2CursorObj_retrieve_one_row(DB2CursorObj *self, int numCols, int idx)
 	return row;
 }
 
+/*
+ * _DB2CursorObj_retrieve_rows: NEW REFERENCE
+ */
 static PyObject *
 _DB2CursorObj_retrieve_rows(DB2CursorObj *self, int howmany)
 {
