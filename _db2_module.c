@@ -1,27 +1,35 @@
 /*
 	Python DB API for IBM DB2
 
-	Man-Yong Lee <manyong.lee@gmail.com>, 2000-2005
-	             <yong@NewMediaLife.com>
-
+	Man-Yong Lee <manyong.lee@gmail.com>, 2000
+	             <yong@linuxkorea.co.kr>
+ 	2005-11-23 Frank Balzer <frank.balzer@novell.com>
+		-- fixed timestamp output to ISO-Dates
+		-- add support for multiple result sets
+		-- converted procName in callproc to upper letters
+		-- raise error, if SQLProcedureColumns returns an error
+		-- fixed some compiler warnings
+		-- add optional schema in callproc
+		-- fix for determineException
+		-- fix for a bufferoverflow in _DB2CursorObj_prepare_param_vars
 	According to PEP 249 (Python DB API Spec v2.0)
 
-	ChangeLog:
-
-		2005-09-22	use char * instead of void * on Windows in function _SQL_CType_2_PyType
-					I don't know why MS compiler complains about ``unknown size'' of void *
-
  */
-#define __version__	"1.1.1"
+#define __version__	"1.2.0"
 
 #include "Python.h"
 
 #ifdef MS_WIN32
-#	include <windows.h>
-#	ifndef uint 
-#		define uint unsigned int
-#	endif
+#include <windows.h>
+#ifndef unit
+#define unit unsigned int
+#endif
 #endif /* MS_WIN32 */ 
+
+/** enable the m$ bullshit with bcpp */
+#ifdef __BORLANDC__
+#define _MSC_VER
+#endif
 
 #include "structmember.h"
 #include <sys/types.h>
@@ -287,6 +295,7 @@ static PyObject * DB2CursorObj_execute(DB2CursorObj *, PyObject *);
 static PyObject * DB2CursorObj_fetch(DB2CursorObj *, PyObject *);
 static PyObject * DB2CursorObj_callproc(DB2CursorObj *, PyObject *);
 static PyObject * DB2CursorObj_skip_rows(DB2CursorObj *, PyObject *);
+static PyObject * DB2CursorObj_nextset(DB2CursorObj *);
 
 static int _DB2CursorObj_set_col_desc(DB2CursorObj *, int);
 static int _DB2CursorObj_get_param_info(DB2CursorObj *, int);
@@ -314,6 +323,7 @@ DB2CursorObj_methods[] = {
 	{ "close", (PyCFunction)DB2CursorObj_close, METH_VARARGS, },
 	{ "execute", (PyCFunction)DB2CursorObj_execute, METH_VARARGS, },
 	{ "fetch", (PyCFunction)DB2CursorObj_fetch, METH_VARARGS, },
+  { "nextset", (PyCFunction)DB2CursorObj_nextset, METH_VARARGS, },
 	{ "callproc", (PyCFunction)DB2CursorObj_callproc, METH_VARARGS, },
 	{ "_skip", (PyCFunction)DB2CursorObj_skip_rows, METH_VARARGS, },
 	{ "_readLOB", (PyCFunction)DB2CursorObj_read_LOB, METH_VARARGS, },
@@ -344,6 +354,7 @@ checkSuccess(SQLRETURN  rc)
 	}
 }
 
+
 static int
 checkWarning(SQLRETURN  rc)
 {
@@ -353,6 +364,7 @@ checkWarning(SQLRETURN  rc)
 		return 0;
 	}
 }
+
 
 static int
 includeSqlState(char *sqlState, const char *stateList[])
@@ -390,41 +402,43 @@ determineException(char *sqlState)
 	} else {
 		exc = DB2_Error;
 	}
-
+        Py_INCREF(exc);
 	return exc;
 }
 
 static PyObject *
 _DB2CursorObj_get_Cursor_Error(DB2CursorObj *self, PyObject *exc)
 {
-	PyObject *t;
+	PyObject *t, *r;
 	char *v;
 
 	t = _DB2_GetDiagRec(self->hstmt, SQL_HANDLE_STMT);
 	v = PyString_AsString(PyTuple_GetItem(t, 0));
 
-	if (!exc) { 
-		exc = determineException(v);
-	}
+	if (!exc) { exc = determineException(v); }
 
-	return Py_BuildValue("(OO)", exc, t);
+	r = PyTuple_New(2);
+
+	/* Py_INCREF(exc); */
+	PyTuple_SetItem(r, 0, exc);
+	PyTuple_SetItem(r, 1, t);
+
+	return r;
 }
 
 static PyObject *
 _DB2CursorObj_Cursor_Error(DB2CursorObj *self, PyObject *exc)
 {
-	PyObject *t;
-	char *v;
+	PyObject *e, *v, *r;
 
-	t = _DB2_GetDiagRec(self->hstmt, SQL_HANDLE_STMT);
-	v = PyString_AsString(PyTuple_GetItem(t, 0));
+	r = _DB2CursorObj_get_Cursor_Error(self, exc);
 
-	if ( !exc ) {
-		exc = determineException(v);
-	}
+	e = PyTuple_GetItem(r, 0); /* Py_INCREF(e); */
+	v = PyTuple_GetItem(r, 1); Py_INCREF(v);
 
-	PyErr_SetObject(exc, t);
-	Py_DECREF(t);
+	PyErr_SetObject(e, v);
+
+	Py_DECREF(r);
 
 	return NULL;
 }
@@ -443,6 +457,7 @@ _DB2CursorObj_fill_Cursor_messages(DB2CursorObj *self)
 	PyTuple_SetItem(r, 1, t);
 
 	PyList_Append( self->messages, r);
+
 	Py_DECREF(r);
 
 	return NULL;
@@ -460,8 +475,6 @@ _DB2ConnObj_Conn_Error(DB2ConnObj *self, PyObject *exc)
 	if (!exc) { exc = determineException(v); }
 
 	PyErr_SetObject(exc, t);
-	Py_DECREF(t);
-
 	return NULL;
 }
 
@@ -477,14 +490,9 @@ _DB2ConnObj_Disconnected_Error(DB2ConnObj *self)
 	PyTuple_SetItem(t, 2, PyString_FromString("Disconnected"));
 
 	PyErr_SetObject(DB2_Error, t);
-	Py_DECREF(t);
-
 	return NULL;
 }
 
-/*
- * _DB2_GetDiagRec: NEW REFERENCE
- */
 static PyObject *
 _DB2_GetDiagRec(SQLHANDLE handle, SQLSMALLINT handleType)
 {
@@ -545,7 +553,7 @@ _DB2_GetDiagRec(SQLHANDLE handle, SQLSMALLINT handleType)
 char *
 get_SQL_type_name(SQLSMALLINT dataType)
 {
-	int i;
+	size_t i;
 	for (i=0; i < sizeof(DB2SQLTypeNameMap); i++) {
 		if (DB2SQLTypeNameMap[i].typeNum == dataType) {
 			return DB2SQLTypeNameMap[i].typeName;
@@ -557,7 +565,7 @@ get_SQL_type_name(SQLSMALLINT dataType)
 void
 show_rc_name(char *prefix, SQLRETURN rc)
 {
-	int i;
+	size_t i;
 
 	if (!DEBUG) {
 		return;
@@ -676,7 +684,7 @@ _db2_SQL_type_dict(PyObject *self, PyObject *args)
 	PyObject *d, *num, *name;
 	SQLSMALLINT typeNum;
 	char *typeName;
-	int i;
+	size_t i;
 
 	d = PyDict_New();
 
@@ -705,7 +713,7 @@ DB2ConnObj_dealloc(DB2ConnObj * self)
 {
 	DB2ConnObj_close( self, (PyObject *)NULL );
 
-	PyObject_Del(self);
+	PyMem_DEL(self);
 }
 
 static PyObject *
@@ -852,7 +860,7 @@ DB2ConnObj_cursor(DB2ConnObj *self, PyObject *args)
 	} else {
 		Py_DECREF(c->description);
 		Py_DECREF(c->messages);
-		Py_DECREF(c);
+		PyObject_Del(c);
 		/* Connection closed ? */
 		return _DB2ConnObj_Conn_Error(self, NULL);
 	}
@@ -873,7 +881,7 @@ DB2CursorObj_dealloc(DB2CursorObj *self)
 	Py_XDECREF(self->description);
 	Py_XDECREF(self->messages);
 
-	PyObject_Del(self);
+	PyMem_DEL(self);
 }
 
 static PyObject *
@@ -1027,7 +1035,6 @@ DB2CursorObj_execute(DB2CursorObj *self, PyObject *args)
 				);
 
 			PyErr_SetObject(DB2_ProgrammingError, t);
-			Py_DECREF(t);
 			return NULL;
 		}
 
@@ -1148,16 +1155,18 @@ DB2CursorObj_callproc(DB2CursorObj *self, PyObject *args)
 	/* YYY */
 	SQLCHAR		*procName;
 	SQLCHAR		callStmt[MAX_PROC_BUF_LEN];
+	SQLCHAR         schemaName[MAX_PROC_BUF_LEN];  
+	         
 	PyObject	*params;
 	PyObject	*retVal;
-
+	SQLCHAR   *nprocName;
 	SQLHANDLE	hstmtProc;
 	SQLRETURN	rc;
 	int		numParams;
 	SQLSMALLINT	numCols;
 	SQLINTEGER	rowCount;
 	DB2ParamStruct	*ps;
-	int		i;
+	int		i, dotFound;
 	int		r;
 
 	struct {
@@ -1174,10 +1183,39 @@ DB2CursorObj_callproc(DB2CursorObj *self, PyObject *args)
 		SQLINTEGER	ind;
 		SQLINTEGER	val;
 	} colSize, colOrdinalPos;
+	
+	schemaName[0] = '%';
+	schemaName[1] = '\0';
 
 	if (!PyArg_ParseTuple(args, "s|O", &procName, &params)) {
 		return NULL;
 	}
+
+	/*be sure that procName is in upper letters*/
+	if( !procName ) {
+		return NULL;
+	}
+	nprocName = procName;
+	i = 0;
+	dotFound = 0;
+	while(*nprocName) {
+		if (isalpha(*nprocName)) {
+			*nprocName = toupper(*nprocName);
+		}
+		if( *nprocName == '.' ) {
+			if ( !dotFound ) {
+				dotFound = i;
+			}
+		}
+		nprocName++;
+		i++;
+	}
+	if ( dotFound ) {
+		strncpy( schemaName, procName, dotFound );
+		schemaName[dotFound] = '\0';
+		procName = &procName[dotFound + 1];
+	}
+	
 
 	_DB2CursorObj_reset_params(self, MAX_PROC_PARAMS_NUM);
 
@@ -1191,7 +1229,7 @@ DB2CursorObj_callproc(DB2CursorObj *self, PyObject *args)
 		hstmtProc,
 		NULL,	/* CatalogName */
 		0,
-		"%",	/* SchemaName */
+		schemaName,	/* SchemaName */
 		SQL_NTS,
 		procName,	/* ProcName */
 		SQL_NTS,
@@ -1275,16 +1313,22 @@ DB2CursorObj_callproc(DB2CursorObj *self, PyObject *args)
 		&colOrdinalPos.ind
 		);
 
-	sprintf((char *)callStmt, "CALL %s ( ", procName);
-
+	if( dotFound ) {
+		sprintf((char *)callStmt, "CALL %s.%s ( ", schemaName, procName);
+	}
+	else {
+		sprintf((char *)callStmt, "CALL %s ( ", procName);
+	}
 	numParams = 0;
 	i = 0;
 
 	while (1) {
 		rc = SQLFetch(hstmtProc);
-
-		if (rc != SQL_SUCCESS) {
+		if (rc == SQL_NO_DATA_FOUND) {
 			break;
+		}
+		else if ( rc != SQL_SUCCESS ) {
+			return _DB2CursorObj_Cursor_Error(self, NULL);
 		}
 
 		if (DEBUG > 1) {
@@ -1292,6 +1336,8 @@ DB2CursorObj_callproc(DB2CursorObj *self, PyObject *args)
 		}
 
 		strcat((char *)callStmt, "?,");
+
+		
 
 		ps = (DB2ParamStruct *) MY_MALLOC(sizeof(DB2ParamStruct));
 		memset(ps, 0, sizeof(DB2ParamStruct));
@@ -1305,21 +1351,30 @@ DB2CursorObj_callproc(DB2CursorObj *self, PyObject *args)
 
 		i += 1;
 	}
-
+	
+	
 	self->paramCount = i;
 
 	callStmt[ strlen(callStmt) - 1 ] = ')';	/* replace last , with ) */
-
+	
+       
 	rc = SQLFreeHandle( SQL_HANDLE_STMT, hstmtProc );
 
-	rc = SQLPrepare( self->hstmt, callStmt, SQL_NTS );
+	/* rc = SQLPrepare( self->hstmt, callStmt, SQL_NTS ); */
 
+	rc = SQLPrepare( self->hstmt, callStmt, SQL_NTS );
 	if (rc != SQL_SUCCESS) {
 		return _DB2CursorObj_Cursor_Error(self, NULL);
 	}
-
+	if ( DEBUG > 1 ) {
+		fprintf(stderr,"preparing params\n");
+	}
 	r = _DB2CursorObj_prepare_param_vars(self, self->paramCount, params);
+	if ( DEBUG > 1 ) {
+                fprintf(stderr,"preparing params ends\n");
+        }
 
+	
 	if (r == 0) {
 		return NULL;
 	} else if (r == -1) {
@@ -1402,6 +1457,42 @@ DB2CursorObj_callproc(DB2CursorObj *self, PyObject *args)
 	return retVal;
 }
 
+static PyObject * 
+DB2CursorObj_nextset(DB2CursorObj *self) {
+	/*
+		.nextset()
+            
+            This method will make the cursor skip to the next
+            available set, discarding any remaining rows from the
+            current set.
+            
+            If there are no more sets, the method returns
+            None. Otherwise, it returns a true value and subsequent
+            calls to the fetch methods will return rows from the next
+            result set.
+            
+            An Error (or subclass) exception is raised if the previous
+            call to executeXXX() did not produce any result set or no
+            call was issued yet.
+	
+	*/
+	PyObject *ret;
+	SQLRETURN	rc;
+
+	if( ! self->hstmt ) {
+		ret = PyInt_FromLong( 0 );
+		return ret;
+	}
+	rc = SQLMoreResults( self->hstmt );
+	if( rc == SQL_SUCCESS ) {
+		ret = PyInt_FromLong( 1 );
+		return ret;
+	}
+	ret = PyInt_FromLong( 0 );
+	return ret;
+}
+	
+
 static PyObject *
 DB2CursorObj_fetch(DB2CursorObj *self, PyObject *args)
 {
@@ -1462,7 +1553,9 @@ DB2CursorObj_fetch(DB2CursorObj *self, PyObject *args)
 			_DB2CursorObj_reset_bind_col(self, numCols);
 			_DB2CursorObj_bind_col(self, numCols, howmany);
 		} else {
-			return _DB2CursorObj_Cursor_Error(self, NULL);
+			Py_INCREF(Py_None);
+                        return Py_None;
+			/*return _DB2CursorObj_Cursor_Error(self, NULL);*/
 		}
 		self->bFetchRefresh = 0;
 		self->lastArraySize = howmany;
@@ -1748,13 +1841,13 @@ _DB2CursorObj_bind_col(DB2CursorObj *self, int numCols, int arraySize)
 			bCol->bufLen = sizeof(SQLCHAR)*(colSize+1);
 			break;
 
-		case SQL_DECIMAL:	/* WARNING! */
-		case SQL_NUMERIC:	/* WARNING! */
+		/*case SQL_DECIMAL:	
+		case SQL_NUMERIC:	
 			bCol->type = SQL_C_CHAR;
 			bCol->typeEx = dataType;
 			bCol->bufLen = sizeof(SQLCHAR)*(colSize+decDigits+1+1);
 			break;
-
+		*/
 		case SQL_SMALLINT:
 			bCol->type = SQL_C_SHORT;
 			bCol->bufLen = sizeof(SQLSMALLINT);
@@ -1791,7 +1884,9 @@ _DB2CursorObj_bind_col(DB2CursorObj *self, int numCols, int arraySize)
 			bCol->type = SQL_C_CLOB_LOCATOR;
 			bCol->bufLen = sizeof(SQLINTEGER);
 			break;
-
+		
+		case SQL_DECIMAL:
+		case SQL_NUMERIC:
 		case SQL_DOUBLE:
 		case SQL_FLOAT:
 			bCol->type = SQL_C_DOUBLE;
@@ -1856,20 +1951,13 @@ _DB2CursorObj_bind_col(DB2CursorObj *self, int numCols, int arraySize)
 	return 1;
 }
 
-/*
- * _SQL_CType_2_PyType: NEW REFERENCE
- */
 static PyObject *
 _SQL_CType_2_PyType(DB2BindStruct *bs, int idx)
 {
-	PyObject *val, *tmpVal;
+	PyObject *val;
 	char *tempStr;
 	int size;
-#ifdef MS_WIN32
-	SQLPOINTER buf = (SQLPOINTER)((char *)bs->buf + (bs->bufLen * idx));
-#else
-	SQLPOINTER buf = (SQLPOINTER)((void *)bs->buf + (bs->bufLen * idx));
-#endif
+	SQLPOINTER buf = (SQLPOINTER) ((char*)(bs->buf) + (bs->bufLen * idx));
 
 	DATE_STRUCT dateSt;
 	TIME_STRUCT timeSt;
@@ -1890,12 +1978,7 @@ _SQL_CType_2_PyType(DB2BindStruct *bs, int idx)
 			val = PyLong_FromString((SQLCHAR *)(buf), NULL, 0);
 			break;
 
-		case SQL_DECIMAL:	/* WARNING! */
-		case SQL_NUMERIC:	/* WARNING! */
-			tmpVal = PyString_FromString((SQLCHAR *)(buf));
-			val = PyFloat_FromString(tmpVal, NULL);
-			Py_DECREF(tmpVal);
-			break;
+
 
 		default:
 			val = PyString_FromString((SQLCHAR *)(buf));
@@ -1903,6 +1986,14 @@ _SQL_CType_2_PyType(DB2BindStruct *bs, int idx)
 
 		}
 		break;
+
+	case SQL_DECIMAL:	/* WARNING! */
+	case SQL_NUMERIC:	/* WARNING! */
+		/*tmpVal = PyString_FromString((SQLCHAR *)(buf));
+		val = PyFloat_FromString(tmpVal, NULL);
+		Py_DECREF(tmpVal);*/
+                val = PyFloat_FromDouble(*(SQLDOUBLE *)(buf));
+		break;	
 
 	case SQL_C_SHORT:
 		val = PyInt_FromLong(*(SQLSMALLINT *)(buf));
@@ -1964,7 +2055,7 @@ _SQL_CType_2_PyType(DB2BindStruct *bs, int idx)
 		tempStr = (char *) MY_MALLOC(size);
 		memset(tempStr, 0, size);
 		sprintf(tempStr,
-				"%04d-%02d-%02d-%02d.%02d.%02d.",
+				"%04d-%02d-%02d %02d:%02d:%02d.",
 				timestampSt.year,
 				timestampSt.month,
 				timestampSt.day,
@@ -2004,14 +2095,10 @@ _SQL_CType_2_PyType(DB2BindStruct *bs, int idx)
 	return val;
 }
 
-/*
- * _SQLType_2_PyType: NEW REFERENCE
- */
 static PyObject *
 _SQLType_2_PyType(DB2ParamStruct *ps)
 {
 	PyObject *val;
-	PyObject *tmpVal;
 	/*
 	char *tempStr;
 	*/
@@ -2047,14 +2134,18 @@ _SQLType_2_PyType(DB2ParamStruct *ps)
 	case SQL_INTEGER:
 		val = PyInt_FromLong( *((SQLINTEGER *)buf) );
 		break;
-
 	case SQL_DECIMAL:
+	case SQL_NUMERIC:
+        case SQL_DOUBLE:
+		val = PyFloat_FromDouble( *((SQLDOUBLE *)buf) );
+		break;
+	/*case SQL_DECIMAL:
 	case SQL_NUMERIC:
 		tmpVal = PyString_FromStringAndSize((SQLCHAR *)(buf), ps->outLen);
 		val = PyFloat_FromString(tmpVal, NULL);
 		Py_DECREF(tmpVal);
 		break;
-
+	*/
 	case SQL_TYPE_DATE:
 	case SQL_TYPE_TIME:
 	case SQL_TYPE_TIMESTAMP:
@@ -2066,9 +2157,6 @@ _SQLType_2_PyType(DB2ParamStruct *ps)
 	return val;
 }
 
-/*
- * _DB2CursorObj_retrieve_one_row: NEW REFERENCE
- */
 static PyObject *
 _DB2CursorObj_retrieve_one_row(DB2CursorObj *self, int numCols, int idx)
 {
@@ -2090,13 +2178,11 @@ _DB2CursorObj_retrieve_one_row(DB2CursorObj *self, int numCols, int idx)
 	return row;
 }
 
-/*
- * _DB2CursorObj_retrieve_rows: NEW REFERENCE
- */
 static PyObject *
 _DB2CursorObj_retrieve_rows(DB2CursorObj *self, int howmany)
 {
-	int i, numCols;
+	size_t i; 
+	int numCols;
 	PyObject *val;
 	PyObject *rows;
 
@@ -2218,6 +2304,7 @@ _DB2CursorObj_prepare_param_vars(DB2CursorObj *self, int numParams, PyObject *pa
 
 	SQLSMALLINT	smallIntVal;
 	SQLINTEGER	intVal;
+	SQLDOUBLE       doubleVal;
 	FILE		*fp;
 
 	for ( i=0; i < numParams; i++ ) {
@@ -2245,12 +2332,15 @@ _DB2CursorObj_prepare_param_vars(DB2CursorObj *self, int numParams, PyObject *pa
 		case SQL_TYPE_TIME:		/* TIME */
 		case SQL_TYPE_TIMESTAMP:	/* TIMESTAMP */
 			CDataType = SQL_C_CHAR;
-
-			ps->bufLen = ps->colSize + 1;
-			ps->buf = MY_MALLOC(sizeof(SQLCHAR) * (ps->bufLen));
+			/* colSize is wrong here */
+			ps->bufLen = 0;                           
+			ps->buf = NULL;
 
 			if ( PyString_Check(paramVal) ) {
-				strcpy((char *)ps->buf, PyString_AsString(paramVal));
+				ps->bufLen = strlen( PyString_AsString(paramVal) ) + 1;
+                        	ps->buf = MY_MALLOC(sizeof(SQLCHAR) * (ps->bufLen));
+				strcpy((char *)ps->buf, PyString_AsString(paramVal) );
+				
 				ps->outLen = PyString_Size(paramVal);
 			} else if ( paramVal == Py_None ) {
 				ps->outLen = SQL_NULL_DATA;
@@ -2360,22 +2450,42 @@ _DB2CursorObj_prepare_param_vars(DB2CursorObj *self, int numParams, PyObject *pa
 
 			break;
 
+		case SQL_DECIMAL:	/* WARNING! */
+		case SQL_NUMERIC:	/* WARNING! */	
 		case SQL_REAL:
 		case SQL_FLOAT:
 		case SQL_DOUBLE:
 			CDataType = SQL_C_DOUBLE;
+			ps->bufLen = sizeof(SQLDOUBLE);
+                        ps->buf = MY_MALLOC(ps->bufLen);
+			if ( PyFloat_Check(paramVal) )  {
+				if (DEBUG) {
+                                	fprintf(stderr, "* FLOAT\n");
+				}
+				doubleVal = (SQLDOUBLE)PyFloat_AsDouble(paramVal);
+				if ( DEBUG ) {
+					fprintf(stderr,"Double value: %f\n", doubleVal);
+				}
+                                memcpy(ps->buf, &doubleVal, ps->bufLen);
+                                ps->outLen = ps->bufLen;
+	                }
+			else if ( PyInt_Check(paramVal) ) {
+				if (DEBUG) {
+                                        fprintf(stderr, "* Integer to FLOAT\n");
+                                }
+				doubleVal = (SQLDOUBLE)PyInt_AsLong(paramVal);
+				memcpy(ps->buf, &doubleVal, ps->bufLen);
+                                ps->outLen = ps->bufLen;
+				
 
-			if ( PyFloat_Check(paramVal) ) {
-				;
 			} else if ( paramVal == Py_None ) {
-				;
+				ps->outLen = SQL_NULL_DATA;
 			} else {
 				set_param_type_error(paramIdx, ps->dataType, "float");
 				return 0;
 			}
+			break;
 
-		case SQL_DECIMAL:	/* WARNING! */
-		case SQL_NUMERIC:	/* WARNING! */
 		default:
 			if (DEBUG) {
 				fprintf(stderr, "* Param SQL Type: %d\n", ps->dataType);
@@ -2443,7 +2553,7 @@ DB2CursorObj_read_LOB(DB2CursorObj *self, PyObject *args)
 		return NULL;
 	}
 
-	rc = SQLAllocHandle( SQL_HANDLE_STMT, self->hdbc, &hstmt);
+	rc = SQLAllocHandle( SQL_HANDLE_STMT, self->hdbc, &hstmt); 
 
 	rc = SQLGetLength(
 		hstmt,
@@ -2471,7 +2581,7 @@ DB2CursorObj_read_LOB(DB2CursorObj *self, PyObject *args)
 		&dummyInd
 		);
 
-	rc = SQLFreeHandle( SQL_HANDLE_STMT, hstmt);
+	 rc = SQLFreeHandle( SQL_HANDLE_STMT, hstmt); 
 
 	return retData;
 }
@@ -2486,8 +2596,8 @@ _DB2CursorObj_send_lob_file(DB2CursorObj *self, FILE *fp)
 	/* fseek(fp, 0L, SEEK_SET); */
 
 	while (1) {
-		count = fread(buf, 1, 1024, fp);
-		if (count == 0 || count == -1) {
+		count = fread(buf, (size_t) 1, (size_t) 1024, fp);
+		if (count == 0 ) {    // fread returns 0, also if an error occured
 			break;
 		} else if (count > 0) {
 			rc = SQLPutData(
@@ -2554,6 +2664,7 @@ DB2CursorObj_scrollable_flag(DB2CursorObj *self, PyObject *args)
 	}
 
 	if (!PyArg_ParseTuple(args, "O", &obj)) {
+		printf("Not Scrollable\n");
 		return NULL;
 	}
 
