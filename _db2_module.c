@@ -2219,12 +2219,13 @@ _DB2CursorObj_prepare_param_vars(DB2CursorObj *self, int numParams, PyObject *pa
 		case SQL_TYPE_TIME:		/* TIME */
 		case SQL_TYPE_TIMESTAMP:	/* TIMESTAMP */
 			CDataType = SQL_C_CHAR;
-
-			ps->bufLen = ps->colSize + 1;
-			ps->buf = MY_MALLOC(sizeof(SQLCHAR) * (ps->bufLen));
+			ps->bufLen = 0;                           
+			ps->buf = NULL;
 
 			if ( PyString_Check(paramVal) ) {
-				strcpy((char *)ps->buf, PyString_AsString(paramVal));
+				ps->bufLen = strlen( PyString_AsString(paramVal) ) + 1;
+                        	ps->buf = MY_MALLOC(sizeof(SQLCHAR) * (ps->bufLen));
+				strcpy((char *)ps->buf, PyString_AsString(paramVal) );
 				ps->outLen = PyString_Size(paramVal);
 			} else if ( paramVal == Py_None ) {
 				ps->outLen = SQL_NULL_DATA;
