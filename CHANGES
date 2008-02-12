@@ -1,0 +1,9 @@
+PyDB2 version history
+=====================
+
+PyDB2_1.1.0-4
+-------------
+
+- Interface change: Timestamp.get_SQL_value returns ISO string
+
+

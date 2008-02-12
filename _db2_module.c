@@ -1947,7 +1947,7 @@ _SQL_CType_2_PyType(DB2BindStruct *bs, int idx)
 		tempStr = (char *) MY_MALLOC(size);
 		memset(tempStr, 0, size);
 		sprintf(tempStr,
-				"%04d-%02d-%02d-%02d.%02d.%02d.",
+				"%04d-%02d-%02d %02d:%02d:%02d.",
 				timestampSt.year,
 				timestampSt.month,
 				timestampSt.day,

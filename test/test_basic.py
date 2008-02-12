@@ -433,7 +433,7 @@ class SimpleDB2Test_Extended(unittest.TestCase):
 
 		value = []
 		for p in [ '000000', '000010', '000100', '001000', '010000', '100000']:
-			ts = '2005-03-09-08.24.59.%s' % p
+			ts = '2005-03-09 08:24:59.%s' % p
 			value.append(ts)
 			self.cs.execute("""INSERT INTO %s
 					VALUES (?)
