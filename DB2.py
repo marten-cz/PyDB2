@@ -6,13 +6,6 @@
 
 	Man-Yong Lee <manyong.lee@gmail.com>, 2005
 
-	2005-11-23 Frank Balzer <frank.balzer@novell.com>
-	   - add multiple result set support for .executemany
-		 - add multiple result set support for callproc
-		 - add .nextset support
-		 - fixed fetchXXX to return a list
-		 
-
 """
 import _db2
 import os
@@ -20,7 +13,6 @@ import sys
 import time
 import types
 import binascii
-import string
 
 __all__ = [
 	'Binary', 'BLOB',
@@ -87,10 +79,7 @@ class Timestamp(BaseType_):
 		self.value = ('timestamp', year, month, day, hour, min, sec)
 
 	def get_SQL_value(self):
-		#
-		#return '%04d-%02d-%02d-%02d.%02d.%02d.000000' % self.value[1:]
-		#return an ISO Date
-		return '%04d-%02d-%02d %02d:%02d:%02d.000000' % self.value[1:]
+		return '%04d-%02d-%02d-%02d.%02d.%02d.000000' % self.value[1:]
 
 def DateFromTicks(ticks=None):
 	if ticks == None: ticks = time.time()
@@ -118,9 +107,6 @@ class Cursor:
 		self._cs = _cs
 		self.arraysize = 10
 		self.auto_LOB_read = 1
-		self.resultsets = []
-		self.haveresultsets = 0
-		
 
 	def __del__(self):
 		pass
@@ -165,27 +151,17 @@ class Cursor:
 			args = args[0]
 
 		args = self._convert_params(args)
+
 		return func(what, *(args, ))
 
 	def execute(self, stmt, *args):
-		self.haveresultsets = 0
 		return self._sql_execute(self._cs.execute, stmt, *args)
 
 	def executemany(self, stmt, seq_params):
-		self.resultsets = []
-		self.haveresultsets = 0
 		for p in seq_params:
 			self.execute(stmt, *(p, ))
-			s = string.lower(stmt)
-			if ( s.find( "select" ) != -1 ):
-				aa = self.fetchall()
-				if aa:
-					self.resultsets.append(aa)
-		if len(self.resultsets):
-			self.haveresultsets = 1
 
 	def callproc(self, procname, *args):
-		self.haveresultsets = 0
 		return self._sql_execute(self._cs.callproc, procname, *args)
 
 	def readLOB(self, LOB):
@@ -216,10 +192,6 @@ class Cursor:
 		return rows
 
 	def fetchone(self, **kwargs):
-		if self.haveresultsets and len(self.resultsets[0]):
-			a = self.resultsets[0][0] 
-			del self.resultsets[0][0]
-			return a
 		r = self._cs.fetch(-1)
 		if not r: return r
 
@@ -228,55 +200,27 @@ class Cursor:
 			if type(r[i]) == TupleType:
 				r[i] = self._convert_result_col(r[i])
 		# Returning a tuple for backwards compatibility
-		#return tuple(r)
-		# return a list as it should be
-		return r
-	
+		return tuple(r)
+
 	def fetchmany(self, size=None):
-		if self.haveresultsets and len(self.resultsets[0]):
-			if size == None: size = self.arraysize
-			a = []
-			while size:
-				a.append( self.resultsets[0][0] )
-				del self.resultsets[0][0]
-				size = size - 1
-				if not len( self.resultsets[0] ):
-					return a
-			return a
-				
-				
 		if size == None: size = self.arraysize
 		if size <= 0:
 			return []
 
 		rlist = self._cs.fetch(size)
-		if not rlist:
-			return []
 		return self._convert_result_rows(rlist)
 
 	def fetchall(self):
-		if self.haveresultsets and len(self.resultsets):
-			return self.resultsets[0]
 		rlist = []
 		while 1:
 			r = self.fetchone()
 			if not r:
 				break
 			rlist.append(r)
-		if not len(rlist):
-			return []
 		return rlist
 
 	def nextset(self):
-		if len(self.resultsets) and self.haveresultsets:
-			del self.resultsets[0]
-			if len(self.resultsets):
-				return 1
-			else:
-				self.haveresultsets = 0
-				return 0
-			
-		return self._cs.nextset()
+		raise NotSupportedError
 
 	def setinputsizes(self, sizes):
 		pass
