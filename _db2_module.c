@@ -809,7 +809,7 @@ DB2ConnObj_cursor(DB2ConnObj *self, PyObject *args)
 		return _DB2ConnObj_Disconnected_Error(self);
 	}
 
-	if (!(c = PyObject_NEW(DB2CursorObj, &DB2CursorObj_Type))) {
+	if (!(c = PyObject_New(DB2CursorObj, &DB2CursorObj_Type))) {
 		return PyErr_NoMemory();
 	}
 
@@ -864,7 +864,7 @@ DB2CursorObj_dealloc(DB2CursorObj *self)
 	Py_XDECREF(self->description);
 	Py_XDECREF(self->messages);
 
-	PyMem_DEL(self);
+	PyObject_Del(self);
 }
 
 static PyObject *
