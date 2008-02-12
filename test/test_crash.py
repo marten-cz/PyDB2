@@ -22,7 +22,7 @@ class SimpleDB2Test_Crash(unittest.TestCase):
                 (
                     C1 INTEGER,
                     C2 VARCHAR(3),
-                    C3 TIME,
+                    C3 TIMESTAMP
                 )
             """ % self.tableName)
 
@@ -34,7 +34,7 @@ class SimpleDB2Test_Crash(unittest.TestCase):
 
     def _insertDataList(self, valList):
         self.cs.executemany( """INSERT INTO %s
-                    VALUES (?, ?)
+                    VALUES (?, ?, ?)
             """ % self.tableName,
             valList)
 
@@ -47,19 +47,20 @@ class SimpleDB2Test_Crash(unittest.TestCase):
         self.assertRaises(
             DB2.ProgrammingError,
             self._insertData,
-            (1, 'XXXX', '23:45:56')
+            (1, 'XXXX', '2006-08-16 22.33.44.000000')
             )
 
-    def test_0002_wrong_dateformat(self):
-        """String parameter overflow"""
+    def test_0002_double_free_on_error(self):
+        """Double free on error"""
         self._createTable()
         if wait_for_keypress:
             raw_input("Press Enter when you've set up debugging")
         self.assertRaises(
             DB2.ProgrammingError,
             self._insertData,
-            (1, 'XXX', '23.45.56')
+            (1, 'XXX', '2006-08-16.00.00.00.000000')
             )
+
 
 if __name__ == '__main__':
     suite = unittest.TestSuite()
