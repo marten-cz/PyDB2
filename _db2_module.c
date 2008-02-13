@@ -385,7 +385,6 @@ determineException(char *sqlState)
 	} else {
 		exc = DB2_Error;
 	}
-
 	return exc;
 }
 
@@ -402,7 +401,6 @@ _DB2CursorObj_get_Cursor_Error(DB2CursorObj *self, PyObject *exc)
 
 	r = PyTuple_New(2);
 
-	/* Py_INCREF(exc); */
 	PyTuple_SetItem(r, 0, exc);
 	PyTuple_SetItem(r, 1, t);
 
@@ -416,7 +414,7 @@ _DB2CursorObj_Cursor_Error(DB2CursorObj *self, PyObject *exc)
 
 	r = _DB2CursorObj_get_Cursor_Error(self, exc);
 
-	e = PyTuple_GetItem(r, 0); /* Py_INCREF(e); */
+	e = PyTuple_GetItem(r, 0); Py_INCREF(e);
 	v = PyTuple_GetItem(r, 1); Py_INCREF(v);
 
 	PyErr_SetObject(e, v);
@@ -592,7 +590,7 @@ _db2_connect(PyObject *self, PyObject *args, PyObject *kwargs)
 		return NULL;
 	}
 
-	if (!(c = PyObject_NEW(DB2ConnObj, &DB2ConnObj_Type))) {
+	if (!(c = PyObject_New(DB2ConnObj, &DB2ConnObj_Type))) {
 		return PyErr_NoMemory();
 	}
 
@@ -696,7 +694,7 @@ DB2ConnObj_dealloc(DB2ConnObj * self)
 {
 	DB2ConnObj_close( self, (PyObject *)NULL );
 
-	PyMem_DEL(self);
+	PyObject_Del(self);
 }
 
 static PyObject *

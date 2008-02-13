@@ -4,8 +4,11 @@ import Config
 
 import sys
 wait_for_keypress = 1
+
 if not "python_d" in sys.executable:
     sys.exit("ERROR: Must run in debug mode (build with debug flag and run with python_d.exe)")
+if wait_for_keypress:
+    raw_input("Press Enter when you've set up debugging")
     
 class SimpleDB2Test_Crash(unittest.TestCase):
     def setUp(self):
@@ -42,26 +45,38 @@ class SimpleDB2Test_Crash(unittest.TestCase):
     def test_0001_string_parameter_overflow(self):
         """String parameter overflow"""
         self._createTable()
-        if wait_for_keypress:
-            raw_input("Press Enter when you've set up debugging")
         self.assertRaises(
             DB2.ProgrammingError,
             self._insertData,
             (1, 'XXXX', '2006-08-16 22.33.44.000000')
             )
 
-    def test_0002_double_free_on_error(self):
-        """Double free on error"""
+    def test_0002_refcount_wrong_on_error(self):
+        """refcount wrong on cursor error"""
         self._createTable()
-        if wait_for_keypress:
-            raw_input("Press Enter when you've set up debugging")
         self.assertRaises(
             DB2.ProgrammingError,
             self._insertData,
             (1, 'XXX', '2006-08-16.00.00.00.000000')
             )
 
+    def test_0003_refcount_wrong_on_connection_error(self):
+        """refcount wrong on connection error"""
+        self.assertRaises(
+            DB2.DatabaseError,
+            DB2.connect,
+            "no_database_here", "sdfds", "sfsdf"
+            )
+        self.db.close()
 
+    def test_0004_refcount_wrong_on_closed_connection_error(self):
+        """refcount wrong on closed connection error"""
+        self.db.close()
+        self.assertRaises(
+            DB2.Error,
+            self._createTable
+            )
+           
 if __name__ == '__main__':
     suite = unittest.TestSuite()
 
