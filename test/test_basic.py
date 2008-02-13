@@ -253,6 +253,50 @@ class SimpleDB2Test_Cursor(unittest.TestCase):
 		self.assertEqual(r, (1, ))
 		rows = self.cs.fetchall()
 		self.assertEqual(len(rows), SIZE)
+        
+	def test_0102_callproc(self):
+		"""cs.callproc() - IN, OUT, INOUT parameters. Out is too short."""
+		self.cs.execute(
+			"""CREATE PROCEDURE CP_TEST_1
+			(IN P1 CHAR(5), OUT P2 VARCHAR(5), INOUT P3 INTEGER)
+			LANGUAGE SQL
+			BEGIN
+				SET P2 = 'YYY';
+				SET P3 = 3;
+			END""")
+		params = ( 'XXXXX', 'AA', 1 )
+		r = self.cs.callproc('CP_TEST_1', params)
+		self.assertNotEqual( params, r )
+		self.assertEqual( ('XXXXX', 'YYY', 3), r )
+
+	def test_0103_callproc(self):
+		"""cs.callproc() - IN, OUT, INOUT parameters. Out is too long."""
+		self.cs.execute(
+			"""CREATE PROCEDURE CP_TEST_1
+			(IN P1 CHAR(5), OUT P2 VARCHAR(5), INOUT P3 INTEGER)
+			LANGUAGE SQL
+			BEGIN
+				SET P2 = 'YYY';
+				SET P3 = 3;
+			END""")
+		params = ( 'XXXXX', 'AAAAAAA', 1 )
+		r = self.cs.callproc('CP_TEST_1', params)
+		self.assertNotEqual( params, r )
+		self.assertEqual( ('XXXXX', 'YYY', 3), r )
+
+	def test_0104_callproc(self):
+		"""cs.callproc() - IN, OUT, INOUT parameters. Out is wrong type."""
+		self.cs.execute(
+			"""CREATE PROCEDURE CP_TEST_1
+			(IN P1 CHAR(5), OUT P2 VARCHAR(5), INOUT P3 INTEGER)
+			LANGUAGE SQL
+			BEGIN
+				SET P2 = 'YYY';
+				SET P3 = 3;
+			END""")
+		params = ( 'XXXXX', 3, 1 )
+		self.assertRaises(TypeError, self.cs.callproc, 'CP_TEST_1', params )
+
 
 class SimpleDB2Test_Extended(unittest.TestCase):
 	def setUp(self):
@@ -433,7 +477,7 @@ class SimpleDB2Test_Extended(unittest.TestCase):
 
 		value = []
 		for p in [ '000000', '000010', '000100', '001000', '010000', '100000']:
-			ts = '2005-03-09 08:24:59.%s' % p
+			ts = '2005-03-09-08.24.59.%s' % p
 			value.append(ts)
 			self.cs.execute("""INSERT INTO %s
 					VALUES (?)
