@@ -24,7 +24,7 @@ def get_db2_root():
 		return DB2_ROOT
 
 if sys.platform[:5] == 'win32': # Win32
-	db2_root_dir = 'C:\\Program Files\\SQLLIB\\'
+	db2_root_dir =  db2_root_dir = os.environ["DB2TEMPDIR"]
 	db2lib = 'db2cli'
 else:
 	db2_root_dir = get_db2_root()
