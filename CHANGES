@@ -1,9 +1,23 @@
 PyDB2 version history
 =====================
 
-PyDB2_1.1.0-4
+PyDB2_1.1.0-3
 -------------
 
-- Interface change: Timestamp.get_SQL_value returns ISO string
+-- Rolled back CVS to the current release as new bugs had crept in 
+-- Fixed compile error for MSVC
 
+PyDB2_1.1.0-4 
+-------------
 
+-- Readded PyObject_Del fixes from revision 1.4, as they had been 
+    inadvertently erased in revision 1.10
+-- Fixed reference counting bugs on exception handling. Now for good, hopefully.
+-- Readded compilation fixes from revision 1.10. Mainly changing some ints to size_t
+-- Made other compilation fixes
+-- Readded buffer overrun fix from revision 1.10, 
+    but made sure it didn't break callproc test
+-- Readded float/real/double support from revision 1.10. Got rid of memory leak there.
+-- Fixed tests. Added test_crash.py for developers to check for segfaults and ref count errors.
+-- setup.py now checks environment value for DB2 installation directory
+-- more tests added for callproc

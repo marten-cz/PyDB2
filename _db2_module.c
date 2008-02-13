@@ -2194,6 +2194,7 @@ _DB2CursorObj_prepare_param_vars(DB2CursorObj *self, int numParams, PyObject *pa
 
 	SQLSMALLINT	smallIntVal;
 	SQLINTEGER	intVal;
+	SQLDOUBLE       doubleVal;
 	FILE		*fp;
 
 	for ( i=0; i < numParams; i++ ) {
@@ -2341,16 +2342,37 @@ _DB2CursorObj_prepare_param_vars(DB2CursorObj *self, int numParams, PyObject *pa
 		case SQL_FLOAT:
 		case SQL_DOUBLE:
 			CDataType = SQL_C_DOUBLE;
-
-			if ( PyFloat_Check(paramVal) ) {
-				;
+			if ( PyFloat_Check(paramVal) )  {
+				ps->bufLen = sizeof(SQLDOUBLE);
+				ps->buf = MY_MALLOC(ps->bufLen);
+				if (DEBUG) {
+					fprintf(stderr, "* FLOAT\n");
+				}
+				doubleVal = (SQLDOUBLE)PyFloat_AsDouble(paramVal);
+				if ( DEBUG ) {
+					fprintf(stderr,"Double value: %f\n", doubleVal);
+				}
+				memcpy(ps->buf, &doubleVal, ps->bufLen);
+				ps->outLen = ps->bufLen;
+			}
+			else if ( PyInt_Check(paramVal) ) {
+				ps->bufLen = sizeof(SQLDOUBLE);
+				ps->buf = MY_MALLOC(ps->bufLen);
+				if (DEBUG) {
+					fprintf(stderr, "* Integer to FLOAT\n");
+				}
+				doubleVal = (SQLDOUBLE)PyInt_AsLong(paramVal);
+				memcpy(ps->buf, &doubleVal, ps->bufLen);
+				ps->outLen = ps->bufLen;
 			} else if ( paramVal == Py_None ) {
-				;
+				ps->bufLen = sizeof(SQLDOUBLE);
+				ps->buf = MY_MALLOC(ps->bufLen);
+				ps->outLen = SQL_NULL_DATA;
 			} else {
 				set_param_type_error(paramIdx, ps->dataType, "float");
 				return 0;
 			}
-
+			break;
 		case SQL_DECIMAL:	/* WARNING! */
 		case SQL_NUMERIC:	/* WARNING! */
 		default:
