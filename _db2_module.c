@@ -3,7 +3,10 @@
 
 	Man-Yong Lee <manyong.lee@gmail.com>, 2000
 	             <yong@linuxkorea.co.kr>
-
+         Jon Thoroddsen    <jon.thoroddsen@gmail.com>     
+ 	2005-11-23 Frank Balzer <frank.balzer@novell.com> (Audited by Jon Thoroddsen at 2008-02-13)
+		-- fixed some compiler warnings
+		-- fix for a bufferoverflow in _DB2CursorObj_prepare_param_vars
 	According to PEP 249 (Python DB API Spec v2.0)
 
  */
@@ -534,7 +537,7 @@ _DB2_GetDiagRec(SQLHANDLE handle, SQLSMALLINT handleType)
 char *
 get_SQL_type_name(SQLSMALLINT dataType)
 {
-	int i;
+	size_t i;
 	for (i=0; i < sizeof(DB2SQLTypeNameMap); i++) {
 		if (DB2SQLTypeNameMap[i].typeNum == dataType) {
 			return DB2SQLTypeNameMap[i].typeName;
@@ -546,7 +549,7 @@ get_SQL_type_name(SQLSMALLINT dataType)
 void
 show_rc_name(char *prefix, SQLRETURN rc)
 {
-	int i;
+	size_t i;
 
 	if (!DEBUG) {
 		return;
@@ -665,7 +668,7 @@ _db2_SQL_type_dict(PyObject *self, PyObject *args)
 	PyObject *d, *num, *name;
 	SQLSMALLINT typeNum;
 	char *typeName;
-	int i;
+	size_t i;
 
 	d = PyDict_New();
 
@@ -2068,7 +2071,8 @@ _DB2CursorObj_retrieve_one_row(DB2CursorObj *self, int numCols, int idx)
 static PyObject *
 _DB2CursorObj_retrieve_rows(DB2CursorObj *self, int howmany)
 {
-	int i, numCols;
+	SQLUINTEGER i;
+	int numCols;
 	PyObject *val;
 	PyObject *rows;
 
@@ -2459,7 +2463,7 @@ _DB2CursorObj_send_lob_file(DB2CursorObj *self, FILE *fp)
 	/* fseek(fp, 0L, SEEK_SET); */
 
 	while (1) {
-		count = fread(buf, 1, 1024, fp);
+		count = fread(buf, (size_t) 1, (size_t) 1024, fp);
 		if (count == 0 || count == -1) {
 			break;
 		} else if (count > 0) {
