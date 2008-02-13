@@ -81,9 +81,10 @@ class Timestamp(BaseType_):
         self.value = ('timestamp', year, month, day, hour, min, sec, microsec)
 
     def get_SQL_value(self):
-        #return '%04d-%02d-%02d-%02d.%02d.%02d.000000' % self.value[1:]      
+        #keep this until v1.2
+        return '%04d-%02d-%02d-%02d.%02d.%02d.%06d' % self.value[1:]      
         #return an ISO Date      
-        return '%04d-%02d-%02d %02d:%02d:%02d.%06d' % self.value[1:]
+        #return '%04d-%02d-%02d %02d:%02d:%02d.%06d' % self.value[1:]
      
 def DateFromTicks(ticks=None):
     if ticks == None: ticks = time.time()
