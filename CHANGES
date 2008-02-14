@@ -21,3 +21,4 @@ PyDB2_1.1.0-4
 -- Fixed tests. Added test_crash.py for developers to check for segfaults and ref count errors.
 -- setup.py now checks environment value for DB2 installation directory
 -- more tests added for callproc
+-- Added patch for a better setup script. Not tested well on linux.

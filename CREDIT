@@ -32,4 +32,7 @@ Wojciech Wloszek <w.wloszek@skrzynka.pl>
 
 Yuval Turgeman
 	Timestamp bug (2003.04.06)
+    
+Dave Hughes 
+    Greatly improved setup.py    
 
