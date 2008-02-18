@@ -107,10 +107,12 @@ Compilation may fail."""
 
 setup(
     name="PyDB2",
-    version="1.1.0",
+    version="1.1.1",
     description="Python module for IBM DB2",
     author="Man-Yong (Bryan) Lee",
     author_email="manyong.lee@gmail.com",
+    maintainer="Jon Thoroddsen",
+    maintainer_email="jon.thoroddsen@gmail.com",
     license="LGPL",
     package_dir={'DB2': os.curdir},
     py_modules=['DB2'],
