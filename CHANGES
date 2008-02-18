@@ -7,7 +7,7 @@ PyDB2_1.1.0-3
 -- Rolled back CVS to the current release as new bugs had crept in 
 -- Fixed compile error for MSVC
 
-PyDB2_1.1.0-4 
+PyDB2_1.1.1
 -------------
 
 -- Readded PyObject_Del fixes from revision 1.4, as they had been 
@@ -22,3 +22,8 @@ PyDB2_1.1.0-4
 -- setup.py now checks environment value for DB2 installation directory
 -- more tests added for callproc
 -- Added patch for a better setup script. Not tested well on linux.
+
+PyDB2_1.1.1-1
+-------------
+
+-- Fixed embarassing build error on Linux
