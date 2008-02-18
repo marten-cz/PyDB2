@@ -111,6 +111,7 @@ setup(
     description="Python module for IBM DB2",
     author="Man-Yong (Bryan) Lee",
     author_email="manyong.lee@gmail.com",
+    url="http://sourceforge.net/projects/pydb2/",
     maintainer="Jon Thoroddsen",
     maintainer_email="jon.thoroddsen@gmail.com",
     license="LGPL",
