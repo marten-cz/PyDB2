@@ -2225,7 +2225,8 @@ _DB2CursorObj_prepare_param_vars(DB2CursorObj *self, int numParams, PyObject *pa
 			ps->bufLen = ps->colSize + 1;
 
 			if ( PyString_Check(paramVal) ) {
-				ps->bufLen = max(ps->bufLen, strlen( PyString_AsString(paramVal) ) + 1);
+				ps->bufLen = strlen( PyString_AsString(paramVal) ) + 1;
+                ps->bufLen = (ps->colSize + 1 > ps->bufLen) ? ps->colSize + 1 : ps->bufLen;
                	ps->buf = MY_MALLOC(sizeof(SQLCHAR) * (ps->bufLen));
 				strcpy((char *)ps->buf, PyString_AsString(paramVal) );
 				ps->outLen = PyString_Size(paramVal);
