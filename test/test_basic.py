@@ -308,10 +308,17 @@ class SimpleDB2Test_Extended(unittest.TestCase):
                 ('VARCHAR(3)', 'V'),
                 ('DATE', '2005-03-03'),
                 ('TIME', '00:01:02'),
+                #TODO fix timestamp
+                ('TIMESTAMP', '2005-03-03-00.01.02.000000'),
                 ('SMALLINT', 1),
                 ('INTEGER', 2),
                 ('BIGINT', 3L),
                 ('REAL', 1.0),
+                ('FLOAT', 1.0),
+                ('DOUBLE', 1.0),
+                ('REAL', 100.5),
+                ('FLOAT', 100.5),
+                ('DECIMAL(6,2)', 100.5),
             ]
 
     def tearDown(self):
@@ -537,16 +544,6 @@ class SimpleDB2Test_Extended(unittest.TestCase):
         r = self.cs.fetchone()
         self.assertEqual( r[0], 1.0)
 
-    def test_0071_DECIMAL_from_float(self):
-        """DECIMAL from float"""
-        self.cs.execute("""CREATE TABLE %s (P1 DECIMAL) """ % self.tableName)
-        self.cs.execute("""INSERT INTO %s
-                VALUES (?)
-            """ % self.tableName, 1.0)
-        self.cs.execute("SELECT * FROM %s" % self.tableName)
-        r = self.cs.fetchone()
-        self.assertEqual( r[0], 1.0)
-
     def test_0072_DECIMAL_from_int(self):
         """DECIMAL from int"""
         self.cs.execute("""CREATE TABLE %s (P1 DECIMAL) """ % self.tableName)
@@ -555,7 +552,7 @@ class SimpleDB2Test_Extended(unittest.TestCase):
             """ % self.tableName, 1)
         self.cs.execute("SELECT * FROM %s" % self.tableName)
         r = self.cs.fetchone()
-        self.assertEqual( r[0], 1)
+        self.assertEqual( r[0], 1.0)
 
     def test_0073_DECIMAL_from_long(self):
         """DECIMAL from long"""
@@ -565,37 +562,89 @@ class SimpleDB2Test_Extended(unittest.TestCase):
             """ % self.tableName, 1L)
         self.cs.execute("SELECT * FROM %s" % self.tableName)
         r = self.cs.fetchone()
-        self.assertEqual( r[0], 1L)
+        self.assertEqual( r[0], 1.0)
         
-    def test_0071_NUMERIC_from_float(self):
+    def test_0074_DECIMAL_from_none(self):
+        """DECIMAL from none"""
+        self.cs.execute("""CREATE TABLE %s (P1 DECIMAL) """ % self.tableName)
+        self.cs.execute("""INSERT INTO %s
+                VALUES (?)
+            """ % self.tableName, None)
+        self.cs.execute("SELECT * FROM %s" % self.tableName)
+        r = self.cs.fetchone()
+        self.assertEqual( r[0], None)
+        
+    def test_0075_DECIMAL_from_float(self):
+        """DECIMAL from float"""
+        self.cs.execute("""CREATE TABLE %s (P1 DECIMAL) """ % self.tableName)
+        self.cs.execute("""INSERT INTO %s
+                VALUES (?)
+            """ % self.tableName, 10000.50)
+        self.cs.execute("SELECT * FROM %s" % self.tableName)
+        r = self.cs.fetchone()
+        #truncated due to missing decimals
+        #TODO shouldn't the truncation issue a warning?
+        self.assertEqual( r[0], 10000.0)
+
+    def test_0076_DECIMAL_from_float(self):
+        """DECIMAL from float, float too many decimals"""
+        self.cs.execute("""CREATE TABLE %s (P1 DECIMAL(9,2)) """ % self.tableName)
+        self.cs.execute("""INSERT INTO %s
+                VALUES (?)
+            """ % self.tableName, 10000.56234)
+        self.cs.execute("SELECT * FROM %s" % self.tableName)
+        r = self.cs.fetchone()
+        #truncated due to missing decimals
+        #TODO shouldn't the truncation issue a warning?
+        self.assertEqual( r[0], 10000.56)
+
+    def test_0077_DECIMAL_from_float_too_big(self):
+        """DECIMAL from float, float too big to fit"""
+        self.cs.execute("""CREATE TABLE %s (P1 DECIMAL(3,2)) """ % self.tableName)
+        #TODO shouldn't this be a ValueError?
+        self.assertRaises(DB2.Error, self.cs.execute, """INSERT INTO %s
+                VALUES (?)
+            """ % self.tableName, 10000.50)
+        
+    def test_0081_NUMERIC_from_float(self):
         """NUMERIC from float"""
         self.cs.execute("""CREATE TABLE %s (P1 NUMERIC) """ % self.tableName)
         self.cs.execute("""INSERT INTO %s
                 VALUES (?)
-            """ % self.tableName, 1.0)
+            """ % self.tableName, 100.5)
         self.cs.execute("SELECT * FROM %s" % self.tableName)
         r = self.cs.fetchone()
-        self.assertEqual( r[0], 1.0)
+        #truncation
+        self.assertEqual( r[0], 100.0)
 
-    def test_0072_NUMERIC_from_int(self):
+    def test_0082_NUMERIC_from_int(self):
         """NUMERIC from int"""
         self.cs.execute("""CREATE TABLE %s (P1 NUMERIC) """ % self.tableName)
         self.cs.execute("""INSERT INTO %s
                 VALUES (?)
-            """ % self.tableName, 1)
+            """ % self.tableName, 100)
         self.cs.execute("SELECT * FROM %s" % self.tableName)
         r = self.cs.fetchone()
-        self.assertEqual( r[0], 1)
+        self.assertEqual( r[0], 100.0)
 
-    def test_0073_NUMERIC_from_long(self):
+    def test_0083_NUMERIC_from_long(self):
         """NUMERIC from long"""
         self.cs.execute("""CREATE TABLE %s (P1 NUMERIC) """ % self.tableName)
         self.cs.execute("""INSERT INTO %s
                 VALUES (?)
-            """ % self.tableName, 1L)
+            """ % self.tableName, 100L)
         self.cs.execute("SELECT * FROM %s" % self.tableName)
         r = self.cs.fetchone()
-        self.assertEqual( r[0], 1L)
+        self.assertEqual( r[0], 100.0)
+    def test_0084_NUMERIC_from_none(self):
+        """NUMERIC from None"""
+        self.cs.execute("""CREATE TABLE %s (P1 NUMERIC) """ % self.tableName)
+        self.cs.execute("""INSERT INTO %s
+                VALUES (?)
+            """ % self.tableName, None)
+        self.cs.execute("SELECT * FROM %s" % self.tableName)
+        r = self.cs.fetchone()
+        self.assertEqual( r[0], None)
         
 class SimpleDB2Test_Regression(unittest.TestCase):
     def setUp(self):
