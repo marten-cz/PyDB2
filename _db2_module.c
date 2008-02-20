@@ -1852,6 +1852,7 @@ _SQL_CType_2_PyType(DB2BindStruct *bs, int idx)
 {
 	PyObject *val, *tmpVal;
 	char *tempStr;
+    int i;
 	int size;
 	SQLPOINTER buf = (SQLPOINTER)((SQLCHAR *)bs->buf + (bs->bufLen * idx));
 
@@ -1874,13 +1875,24 @@ _SQL_CType_2_PyType(DB2BindStruct *bs, int idx)
 			val = PyLong_FromString((SQLCHAR *)(buf), NULL, 0);
 			break;
 
-		case SQL_DECIMAL:	/* WARNING! */
-		case SQL_NUMERIC:	/* WARNING! */
-			tmpVal = PyString_FromString((SQLCHAR *)(buf));
+		case SQL_DECIMAL:	
+		case SQL_NUMERIC:	
+    		tempStr = (char *)MY_MALLOC(bs->outLen[idx]+1);
+    		strncpy(tempStr, (char *)(buf), bs->outLen[idx]);
+    		tempStr[bs->outLen[idx]] = '\0';
+            for (i = 0;i < bs->outLen[idx];i++)
+            {
+                //check for non-numeric, an assume it's a decimal separator
+                if ((tempStr[i]< 48) || (tempStr[i] > 57))
+                {
+                    tempStr[i]= '.';
+                }
+            }
+    		tmpVal = PyString_FromString(tempStr);
+    		MY_FREE(tempStr);
 			val = PyFloat_FromString(tmpVal, NULL);
 			Py_DECREF(tmpVal);
 			break;
-
 		default:
 			val = PyString_FromString((SQLCHAR *)(buf));
 			break;
@@ -1993,6 +2005,8 @@ _SQLType_2_PyType(DB2ParamStruct *ps)
 {
 	PyObject *val;
 	PyObject *tmpVal;
+    char* tempStr;
+    int i;
 	/*
 	char *tempStr;
 	*/
@@ -2031,11 +2045,22 @@ _SQLType_2_PyType(DB2ParamStruct *ps)
 
 	case SQL_DECIMAL:
 	case SQL_NUMERIC:
-		tmpVal = PyString_FromStringAndSize((SQLCHAR *)(buf), ps->outLen);
-		val = PyFloat_FromString(tmpVal, NULL);
-		Py_DECREF(tmpVal);
+        tempStr = (char *)MY_MALLOC(ps->outLen+1);
+        strncpy(tempStr, (char *)(buf), ps->outLen);
+        tempStr[ps->outLen] = '\0';
+        for (i = 0;i < ps->outLen;i++)
+        {
+            //check for non-numeric, an assume it's a decimal separator
+            if ((tempStr[i]< 48) || (tempStr[i] > 57))
+            {
+                tempStr[i]= '.';
+            }
+        }
+        tmpVal = PyString_FromString(tempStr);
+        MY_FREE(tempStr);
+        val = PyFloat_FromString(tmpVal, NULL);
+        Py_DECREF(tmpVal);
 		break;
-
 	case SQL_TYPE_DATE:
 	case SQL_TYPE_TIME:
 	case SQL_TYPE_TIMESTAMP:
@@ -2195,6 +2220,7 @@ _DB2CursorObj_prepare_param_vars(DB2CursorObj *self, int numParams, PyObject *pa
 	SQLSMALLINT	smallIntVal;
 	SQLINTEGER	intVal;
 	SQLDOUBLE       doubleVal;
+	SQLREAL       floatVal;
 	FILE		*fp;
 
 	for ( i=0; i < numParams; i++ ) {
@@ -2225,8 +2251,8 @@ _DB2CursorObj_prepare_param_vars(DB2CursorObj *self, int numParams, PyObject *pa
 			ps->bufLen = ps->colSize + 1;
 
 			if ( PyString_Check(paramVal) ) {
-				ps->bufLen = strlen( PyString_AsString(paramVal) ) + 1;
-                ps->bufLen = (ps->colSize + 1 > ps->bufLen) ? ps->colSize + 1 : ps->bufLen;
+				ps->bufLen = (SQLINTEGER)strlen( PyString_AsString(paramVal) ) + 1;
+                ps->bufLen = (ps->colSize + 1 > (SQLUINTEGER)ps->bufLen) ? ps->colSize + 1 : ps->bufLen;
                	ps->buf = MY_MALLOC(sizeof(SQLCHAR) * (ps->bufLen));
 				strcpy((char *)ps->buf, PyString_AsString(paramVal) );
 				ps->outLen = PyString_Size(paramVal);
@@ -2339,7 +2365,6 @@ _DB2CursorObj_prepare_param_vars(DB2CursorObj *self, int numParams, PyObject *pa
 
 			break;
 
-		case SQL_REAL:
 		case SQL_FLOAT:
 		case SQL_DOUBLE:
 			CDataType = SQL_C_DOUBLE;
@@ -2374,8 +2399,73 @@ _DB2CursorObj_prepare_param_vars(DB2CursorObj *self, int numParams, PyObject *pa
 				return 0;
 			}
 			break;
-		case SQL_DECIMAL:	/* WARNING! */
-		case SQL_NUMERIC:	/* WARNING! */
+		case SQL_REAL:
+			CDataType = SQL_C_FLOAT;
+			if ( PyFloat_Check(paramVal) )  {
+				ps->bufLen = sizeof(SQLREAL);
+				ps->buf = MY_MALLOC(ps->bufLen);
+				if (DEBUG) {
+					fprintf(stderr, "* FLOAT\n");
+				}
+				floatVal = (SQLREAL)PyFloat_AsDouble(paramVal);
+				if ( DEBUG ) {
+					fprintf(stderr,"Float value: %f\n", floatVal);
+				}
+				memcpy(ps->buf, &floatVal, ps->bufLen);
+				ps->outLen = ps->bufLen;
+			}
+			else if ( PyInt_Check(paramVal) ) {
+				ps->bufLen = sizeof(SQLREAL);
+				ps->buf = MY_MALLOC(ps->bufLen);
+				if (DEBUG) {
+					fprintf(stderr, "* Integer to FLOAT\n");
+				}
+				floatVal = (SQLREAL)PyInt_AsLong(paramVal);
+				memcpy(ps->buf, &floatVal, ps->bufLen);
+				ps->outLen = ps->bufLen;
+			} else if ( paramVal == Py_None ) {
+				ps->bufLen = sizeof(SQLREAL);
+				ps->buf = MY_MALLOC(ps->bufLen);
+				ps->outLen = SQL_NULL_DATA;
+			} else {
+				set_param_type_error(paramIdx, ps->dataType, "float");
+				return 0;
+			}
+			break;
+		case SQL_DECIMAL:	/* Best way to do this?*/
+		case SQL_NUMERIC:
+			CDataType = SQL_C_CHAR;
+			if ( PyFloat_Check(paramVal) )  {
+				tmpVal = PyObject_Str(paramVal);
+				ps->bufLen = PyString_Size(tmpVal);
+				ps->buf = MY_MALLOC(sizeof(SQLCHAR) * (ps->bufLen+1));
+				strcpy((char *)ps->buf, PyString_AsString(tmpVal));
+				Py_DECREF(tmpVal);
+				ps->outLen = ps->bufLen;
+			} else if ( PyInt_Check(paramVal) ) {
+				tmpVal = PyObject_Str(paramVal);
+				ps->bufLen = PyString_Size(tmpVal);
+				ps->buf = MY_MALLOC(sizeof(SQLCHAR) * (ps->bufLen+1));
+				strcpy((char *)ps->buf, PyString_AsString(tmpVal));
+				Py_DECREF(tmpVal);
+				ps->outLen = ps->bufLen;
+			} else if ( PyLong_Check(paramVal)) {
+				tmpVal = PyObject_Str(paramVal);/* str(long) */
+				ps->bufLen = PyString_Size(tmpVal);
+				ps->buf = MY_MALLOC(sizeof(SQLCHAR) * (ps->bufLen+1));
+				strcpy((char *)ps->buf, PyString_AsString(tmpVal));
+				Py_DECREF(tmpVal);
+				ps->outLen = ps->bufLen;
+			} else if ( paramVal == Py_None ) {
+                CDataType = SQL_C_DOUBLE;
+				ps->bufLen = sizeof(SQLDOUBLE);
+				ps->buf = MY_MALLOC(ps->bufLen);
+				ps->outLen = SQL_NULL_DATA;
+			} else {
+				set_param_type_error(paramIdx, ps->dataType, "float");
+				return 0;
+			}
+			break;
 		default:
 			if (DEBUG) {
 				fprintf(stderr, "* Param SQL Type: %d\n", ps->dataType);
@@ -2394,10 +2484,8 @@ _DB2CursorObj_prepare_param_vars(DB2CursorObj *self, int numParams, PyObject *pa
 				strcpy((char *)ps->buf, PyString_AsString(tmpVal));
 				Py_DECREF(tmpVal);
 			}
-
 			break;
 		}
-
 		rc = SQLBindParameter(
 			self->hstmt,		/* Statement Handle */
 			paramIdx,		/* Parameter Number */
