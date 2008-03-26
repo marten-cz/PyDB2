@@ -402,7 +402,7 @@ class SimpleDB2Test_DictCursor(unittest.TestCase):
 
         self.cs.execute("""SELECT * FROM %s""" % self.tableName)
         r = self.cs.fetchone()
-        self.assertEqual( tuple(r), (1, 'a') )
+        self.assertEqual( (r['C1'], r['C2']), (1, 'a') )
 
     def test_0041_execute_fetchone(self):
         """DictCursor cs.fetchone() - SELECT (NULL)"""
@@ -411,7 +411,7 @@ class SimpleDB2Test_DictCursor(unittest.TestCase):
 
         self.cs.execute("""SELECT * FROM %s""" % self.tableName)
         r = self.cs.fetchone()
-        self.assertEqual( tuple(r), (None, None) )
+        self.assertEqual( (r['C1'], r['C2']), (None, None) )
 
     def test_0042_execute_fetchone(self):
         """DictCursor cs.fetchone() - fetch w/o SELECT"""
@@ -446,7 +446,7 @@ class SimpleDB2Test_DictCursor(unittest.TestCase):
         rows = self.cs.fetchall()
         self.assertEqual( len(dataList), len(rows) )
         for i in range( len(rows) ):
-            self.assertEqual( dataList[i], tuple(rows[i]) )
+            self.assertEqual( dataList[i], (rows[i]['C1'], rows[i]['C2']) )
 
     def test_007_fetchmany(self):
         """DictCursor cs.fetchmany()"""
@@ -458,7 +458,7 @@ class SimpleDB2Test_DictCursor(unittest.TestCase):
         rows = self.cs.fetchmany()
         self.assertEqual( len(rows), self.cs.arraysize )
         for i in range( len(rows) ):
-            self.assertEqual( dataList[i], tuple(rows[i]) )
+            self.assertEqual( dataList[i], (rows[i]['C1'], rows[i]['C2']) )
 
     def test_007_1_fetchmany_ask_for_too_much(self):
         """DictCursor cs.fetchmany() - asking for too many rows"""
@@ -470,7 +470,7 @@ class SimpleDB2Test_DictCursor(unittest.TestCase):
         rows = self.cs.fetchmany()
         self.assertEqual( len(rows), len(dataList) )
         for i in range( len(rows) ):
-            self.assertEqual( dataList[i], tuple(rows[i]) )
+            self.assertEqual( dataList[i], (rows[i]['C1'], rows[i]['C2']) )
 
     def test_007_2_fetchmany_nothing_available(self):
         """DictCursor cs.fetchmany() - [ 1411186 ] fix for fetchmany when no rows in rs"""
@@ -480,7 +480,7 @@ class SimpleDB2Test_DictCursor(unittest.TestCase):
         rows = self.cs.fetchmany()
         self.assertEqual( len(rows), 0)
         for i in range( len(rows) ):
-            self.assertEqual( dataList[i], tuple(rows[i]) )
+            self.assertEqual( dataList[i], (rows[i]['C1'], rows[i]['C2']) )
             
     def test_008_description(self):
         """DictCursor cs.description & description2"""

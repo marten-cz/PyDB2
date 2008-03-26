@@ -189,7 +189,6 @@ class Cursor:
 
     def _convert_result_rows(self, rows):
         TupleType = types.TupleType
-
         for r in rows:
             for i in range(len(r)):
                 if type(r[i]) == TupleType:
@@ -262,18 +261,27 @@ class Cursor:
 
 class DictCursor(Cursor):
     def fetchone(self):
-        r = {}
         data = Cursor.fetchone(self)
         if not data: 
-            return {}
+            return data
+        return self.wrap_dict(data)    
+        
+    def wrap_dict(self, data):
+        r = {}
         desc = self._cs.description
-
         for i in range(len(desc)):
             name = desc[i][0]
             r[name] = data[i]
-
         return r
 
+    def _convert_result_rows(self, rows):
+        TupleType = types.TupleType
+        for r in rows:
+            for i in range(len(r)):
+                if type(r[i]) == TupleType:
+                    r[i] = self._convert_result_col(r[i])
+        return map(self.wrap_dict, rows)
+        
 class Connection:
     def __init__(self, *args, **kwargs):
         self._db = _db2.connect(*args, **kwargs)
