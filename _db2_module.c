@@ -577,8 +577,8 @@ _db2_connect(PyObject *self, PyObject *args, PyObject *kwargs)
 			"autoCommit", "connectType", NULL,
 	};
 	char *dsn	= "sample";
-	char *uid	= "db2inst1";
-	char *pwd	= "ibmdb2";
+	char *uid	= "";
+	char *pwd	= "";
 	int autoCommit	= 0;	/* no auto-commit mode */
 	int connectType	= 1;	/* single database per Unit of Work */
 
