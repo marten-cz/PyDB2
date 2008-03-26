@@ -606,6 +606,18 @@ class SimpleDB2Test_Extended(unittest.TestCase):
                 VALUES (?)
             """ % self.tableName, 10000.50)
         
+    def test_0078_DECIMAL_from_float(self):
+        """DECIMAL from float, negative"""
+        self.cs.execute("""CREATE TABLE %s (P1 DECIMAL(9,2)) """ % self.tableName)
+        self.cs.execute("""INSERT INTO %s
+                VALUES (?)
+            """ % self.tableName, -10000.56234)
+        self.cs.execute("SELECT * FROM %s" % self.tableName)
+        r = self.cs.fetchone()
+        #truncated due to missing decimals
+        #TODO shouldn't the truncation issue a warning?
+        self.assertEqual( r[0], -10000.56)
+        
     def test_0081_NUMERIC_from_float(self):
         """NUMERIC from float"""
         self.cs.execute("""CREATE TABLE %s (P1 NUMERIC) """ % self.tableName)

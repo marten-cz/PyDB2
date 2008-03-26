@@ -83,6 +83,7 @@ static DB2SQLTypeNameStruct DB2SQLTypeNameMap[] = {
 };
 
 char *get_SQL_type_name(SQLSMALLINT);
+void convertSeparator(char* tempStr, unsigned int len);
 
 typedef struct {
 	int		rc;
@@ -1730,15 +1731,19 @@ _DB2CursorObj_bind_col(DB2CursorObj *self, int numCols, int arraySize)
 
 		case SQL_CHAR:
 		case SQL_VARCHAR:
-		case SQL_VARBINARY:
 		case SQL_LONGVARCHAR:
-		case SQL_LONGVARBINARY:
 		case SQL_BINARY:
 		case SQL_DATALINK:
 			bCol->type = SQL_C_CHAR;
 			bCol->bufLen = sizeof(SQLCHAR)*(colSize+1);
 			break;
-
+		case SQL_VARBINARY:
+		case SQL_LONGVARBINARY:
+            //When returning as char, we will get the double hex ascii representation, so we need to double our storage
+            //the correct way should be to return as a buffer
+			bCol->type = SQL_C_CHAR;
+			bCol->bufLen = sizeof(SQLCHAR)*2*(colSize+1);
+			break;
 		case SQL_DECIMAL:	/* WARNING! */
 		case SQL_NUMERIC:	/* WARNING! */
 			bCol->type = SQL_C_CHAR;
@@ -1852,7 +1857,6 @@ _SQL_CType_2_PyType(DB2BindStruct *bs, int idx)
 {
 	PyObject *val, *tmpVal;
 	char *tempStr;
-    int i;
 	int size;
 	SQLPOINTER buf = (SQLPOINTER)((SQLCHAR *)bs->buf + (bs->bufLen * idx));
 
@@ -1880,14 +1884,7 @@ _SQL_CType_2_PyType(DB2BindStruct *bs, int idx)
     		tempStr = (char *)MY_MALLOC(bs->outLen[idx]+1);
     		strncpy(tempStr, (char *)(buf), bs->outLen[idx]);
     		tempStr[bs->outLen[idx]] = '\0';
-            for (i = 0;i < bs->outLen[idx];i++)
-            {
-                //check for non-numeric, an assume it's a decimal separator
-                if ((tempStr[i]< 48) || (tempStr[i] > 57))
-                {
-                    tempStr[i]= '.';
-                }
-            }
+            convertSeparator(tempStr, bs->outLen[idx]);
     		tmpVal = PyString_FromString(tempStr);
     		MY_FREE(tempStr);
 			val = PyFloat_FromString(tmpVal, NULL);
@@ -2006,7 +2003,6 @@ _SQLType_2_PyType(DB2ParamStruct *ps)
 	PyObject *val;
 	PyObject *tmpVal;
     char* tempStr;
-    int i;
 	/*
 	char *tempStr;
 	*/
@@ -2048,14 +2044,7 @@ _SQLType_2_PyType(DB2ParamStruct *ps)
         tempStr = (char *)MY_MALLOC(ps->outLen+1);
         strncpy(tempStr, (char *)(buf), ps->outLen);
         tempStr[ps->outLen] = '\0';
-        for (i = 0;i < ps->outLen;i++)
-        {
-            //check for non-numeric, an assume it's a decimal separator
-            if ((tempStr[i]< 48) || (tempStr[i] > 57))
-            {
-                tempStr[i]= '.';
-            }
-        }
+        convertSeparator(tempStr, ps->outLen);
         tmpVal = PyString_FromString(tempStr);
         MY_FREE(tempStr);
         val = PyFloat_FromString(tmpVal, NULL);
@@ -2238,8 +2227,8 @@ _DB2CursorObj_prepare_param_vars(DB2CursorObj *self, int numParams, PyObject *pa
 
 		case SQL_CHAR:
 		case SQL_VARCHAR:
-		case SQL_VARBINARY:
 		case SQL_LONGVARCHAR:
+        case SQL_VARBINARY:
 		case SQL_LONGVARBINARY:
 		case SQL_BINARY:
 		case SQL_DATALINK:
@@ -2824,6 +2813,28 @@ Error:
 	if (py2Debug) { DEBUG = atoi(py2Debug); }
 
 	return;
+}
+
+
+void convertSeparator(char* tempStr, unsigned int len)
+{
+    unsigned int i;
+    // From UNICODE 3.1 standard
+    //Numeric Separators
+    //
+    //Section 6.1 General Punctuation, Punctuation: U+0020-U+00BF, page 149: the following note is added:
+    //
+    //    Note: any of the characters U+002E, U+002C, U+060C, U+066B, or U+066C (and possibly others) can be used as numeric separator characters, depending on the locale and user customizations.
+
+    //Look for numeric seperators, TODO handle UNICODE  seperators >  U+00FF
+    //handling (',' := Ox2C) and ('.' := Ox2E) 
+    for (i = 0;i < len;i++)
+    {
+        if (tempStr[i] == 0x2c)
+        {
+            tempStr[i]= '.';
+        }
+    }
 }
 
 /* FIN */
