@@ -27,3 +27,13 @@ PyDB2_1.1.1-1
 -------------
 
 -- Fixed embarassing build error on Linux
+
+PyDB2_1.1.2
+-------------
+
+-- Fixed locale error on decimal numbers
+-- Fixed truncation of varbinary data on fetch
+-- Fixed errors on fetch when no data is available
+-- Removed default authentication from C code
+
+
