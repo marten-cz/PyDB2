@@ -208,11 +208,13 @@ class Cursor:
         return tuple(r)
 
     def fetchmany(self, size=None):
-        if size == None: size = self.arraysize
+        if size == None: 
+            size = self.arraysize
         if size <= 0:
             return []
-
         rlist = self._cs.fetch(size)
+        if not rlist: 
+            return []
         return self._convert_result_rows(rlist)
 
     def fetchall(self):
@@ -262,7 +264,8 @@ class DictCursor(Cursor):
     def fetchone(self):
         r = {}
         data = Cursor.fetchone(self)
-
+        if not data: 
+            return {}
         desc = self._cs.description
 
         for i in range(len(desc)):

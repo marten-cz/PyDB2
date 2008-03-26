@@ -30,7 +30,7 @@ class SimpleDB2Test_Connection(unittest.TestCase):
         self.conn_d['pwd'] = ''
         self.assertRaises( DB2.Error, DB2.connect, **self.conn_d )
 
-
+    
 class SimpleDB2Test_Cursor(unittest.TestCase):
     def setUp(self):
         self.db = DB2.connect(**Config.ConnDict)
@@ -157,6 +157,7 @@ class SimpleDB2Test_Cursor(unittest.TestCase):
         self._insertDataList( dataList )
         self.cs.execute("SELECT * FROM %s" % self.tableName)
         rows = self.cs.fetchall()
+        self.assertEqual( len(dataList), len(rows) )
         for i in range( len(rows) ):
             self.assertEqual( dataList[i], tuple(rows[i]) )
 
@@ -172,6 +173,28 @@ class SimpleDB2Test_Cursor(unittest.TestCase):
         for i in range( len(rows) ):
             self.assertEqual( dataList[i], tuple(rows[i]) )
 
+    def test_007_1_fetchmany_ask_for_too_much(self):
+        """cs.fetchmany() - asking for too many rows"""
+        self._createTable()
+        dataList = [(1, 'a'), (2, 'b'), (None, None)]
+        self._insertDataList( dataList )
+        self.cs.execute("SELECT * FROM %s" % self.tableName)
+        self.cs.arraysize = 4
+        rows = self.cs.fetchmany()
+        self.assertEqual( len(rows), len(dataList) )
+        for i in range( len(rows) ):
+            self.assertEqual( dataList[i], tuple(rows[i]) )
+
+    def test_007_1_fetchmany_nothing_available(self):
+        """cs.fetchmany() - [ 1411186 ] fix for fetchmany when no rows in rs"""
+        self._createTable()
+        self.cs.execute("SELECT * FROM %s" % self.tableName)
+        self.cs.arraysize = 2
+        rows = self.cs.fetchmany()
+        self.assertEqual( len(rows), 0)
+        for i in range( len(rows) ):
+            self.assertEqual( dataList[i], tuple(rows[i]) )
+            
     def test_008_description(self):
         """cs.description & description2"""
         import types
@@ -297,6 +320,292 @@ class SimpleDB2Test_Cursor(unittest.TestCase):
         params = ( 'XXXXX', 3, 1 )
         self.assertRaises(TypeError, self.cs.callproc, 'CP_TEST_1', params )
 
+class SimpleDB2Test_DictCursor(unittest.TestCase):
+    def setUp(self):
+        self.db = DB2.connect(**Config.ConnDict)
+        self.tableName = 'PYDB2TEST_0'
+        self.cs = self.db.cursor(dictCursor=True)
+
+    def tearDown(self):
+        self.cs.close()
+        self.db.close()
+
+    def _createTable(self):
+        self.cs.execute( """CREATE TABLE %s
+                (
+                    C1 INTEGER,
+                    C2 VARCHAR(3)
+                )
+            """ % self.tableName)
+
+    def _insertData(self, valTuple):
+        self.cs.execute( """INSERT INTO %s
+                    VALUES (?, ?)
+            """ % self.tableName,
+            valTuple)
+
+    def _insertDataList(self, valList):
+        self.cs.executemany( """INSERT INTO %s
+                    VALUES (?, ?)
+            """ % self.tableName,
+            valList)
+            
+    def test_001_cursor_creation(self):
+        """DictCursor db.cursor() - Successful"""
+        pass
+
+    def test_002_execute_create_table(self):
+        """DictCursor cs.execute() - CREATE TABLE"""
+        self._createTable()
+
+    def test_0030_execute_insert_values(self):
+        """DictCursor cs.execute() - INSERT (NORMAL)"""
+        self._createTable()
+        self._insertData( (1, 'a') )
+
+    def test_0031_execute_insert_values(self):
+        """DictCursor cs.execute() - INSERT (NULL)"""
+        self._createTable()
+        self._insertData( (None, None) )
+
+    def test_0032_execute_insert_values(self):
+        """DictCursor cs.execute() - INSERT (Wrong type)"""
+        self._createTable()
+        self.assertRaises(
+            TypeError,
+            self._insertData,
+            (1.0, None)
+            )
+
+    def test_0033_execute_insert_values(self):
+        """DictCursor cs.execute() - INSERT (Right truncation)"""
+        self._createTable()
+        self.assertRaises(
+            DB2.ProgrammingError,
+            self._insertData,
+            (1, 'XXXX')
+            )
+
+    def test_0034_execute_insert_values(self):
+        """DictCursor cs.execute() - INSERT (Wrong # of params)"""
+        self._createTable()
+        self.assertRaises(
+            DB2.ProgrammingError,
+            self._insertData,
+            (1, )
+            )
+
+    def test_0040_execute_fetchone(self):
+        """DictCursor cs.fetchone() - SELECT (NORMAL)"""
+        self._createTable()
+        self._insertData( (1, 'a') )
+
+        self.cs.execute("""SELECT * FROM %s""" % self.tableName)
+        r = self.cs.fetchone()
+        self.assertEqual( tuple(r), (1, 'a') )
+
+    def test_0041_execute_fetchone(self):
+        """DictCursor cs.fetchone() - SELECT (NULL)"""
+        self._createTable()
+        self._insertData( (None, None) )
+
+        self.cs.execute("""SELECT * FROM %s""" % self.tableName)
+        r = self.cs.fetchone()
+        self.assertEqual( tuple(r), (None, None) )
+
+    def test_0042_execute_fetchone(self):
+        """DictCursor cs.fetchone() - fetch w/o SELECT"""
+        self._createTable()
+        self._insertData( (None, None) )
+
+        self.assertRaises(DB2.ProgrammingError, self.cs.fetchone)
+
+    def test_0043_execute_fetchone(self):
+        """DictCursor cs.fetchone() - beyond the last result set"""
+        self._createTable()
+        self._insertData( (None, None) )
+        self.cs.execute("""SELECT * FROM %s""" % self.tableName)
+
+        r = self.cs.fetchone()
+
+        for i in range(100):
+            r = self.cs.fetchone()
+            self.assertEqual(r, None)
+
+    def test_005_executemany(self):
+        """DictCursor cs.executemany()"""
+        self._createTable()
+        self._insertDataList( [(1, 'a'), (2, 'b'), (None, None)] )
+
+    def test_006_fetchall(self):
+        """DictCursor cs.fetchall()"""
+        self._createTable()
+        dataList = [(1, 'a'), (2, 'b'), (None, None)]
+        self._insertDataList( dataList )
+        self.cs.execute("SELECT * FROM %s" % self.tableName)
+        rows = self.cs.fetchall()
+        self.assertEqual( len(dataList), len(rows) )
+        for i in range( len(rows) ):
+            self.assertEqual( dataList[i], tuple(rows[i]) )
+
+    def test_007_fetchmany(self):
+        """DictCursor cs.fetchmany()"""
+        self._createTable()
+        dataList = [(1, 'a'), (2, 'b'), (None, None)]
+        self._insertDataList( dataList )
+        self.cs.execute("SELECT * FROM %s" % self.tableName)
+        self.cs.arraysize = 2
+        rows = self.cs.fetchmany()
+        self.assertEqual( len(rows), self.cs.arraysize )
+        for i in range( len(rows) ):
+            self.assertEqual( dataList[i], tuple(rows[i]) )
+
+    def test_007_1_fetchmany_ask_for_too_much(self):
+        """DictCursor cs.fetchmany() - asking for too many rows"""
+        self._createTable()
+        dataList = [(1, 'a'), (2, 'b'), (None, None)]
+        self._insertDataList( dataList )
+        self.cs.execute("SELECT * FROM %s" % self.tableName)
+        self.cs.arraysize = 4
+        rows = self.cs.fetchmany()
+        self.assertEqual( len(rows), len(dataList) )
+        for i in range( len(rows) ):
+            self.assertEqual( dataList[i], tuple(rows[i]) )
+
+    def test_007_2_fetchmany_nothing_available(self):
+        """DictCursor cs.fetchmany() - [ 1411186 ] fix for fetchmany when no rows in rs"""
+        self._createTable()
+        self.cs.execute("SELECT * FROM %s" % self.tableName)
+        self.cs.arraysize = 2
+        rows = self.cs.fetchmany()
+        self.assertEqual( len(rows), 0)
+        for i in range( len(rows) ):
+            self.assertEqual( dataList[i], tuple(rows[i]) )
+            
+    def test_008_description(self):
+        """DictCursor cs.description & description2"""
+        import types
+
+        self._createTable()
+        colData = (None, None)
+        self._insertData( colData )
+
+        self.cs.execute("""SELECT * FROM %s""" % self.tableName)
+        desc = self.cs.description
+
+        # number of columns in result set
+        self.assertEqual(len(desc), len(colData))
+        for x in desc:
+            # each item SHOULD be of Tuple type
+            self.assertEqual(type(x), types.TupleType)
+            # each item SHOULD be of length 7
+            self.assertEqual(len(x), 7)
+
+        desc2 = self.cs.description2
+        self.assertEqual(len(desc), len(desc2))
+        for x in desc2:
+            # each item SHOULD be of Tuple type
+            self.assertEqual(type(x), types.TupleType)
+            # each item SHOULD be of length 7
+            self.assertEqual(len(x), 7)
+            # 2nd item SHOULD be of String type
+            self.assertEqual(type(x[1]), types.StringType)
+
+    def test_0090_rowcount(self):
+        """DictCursor cs.rowcount - w/ Non-scrollable cursor"""
+        self._createTable()
+        colData = (None, None)
+        self._insertData( colData )
+        self.assertEqual(self.cs.rowcount, 1)
+        # with non-scrollable cursor (default),
+        # it returns -1, not the count of result set
+        self.cs.execute("""SELECT * FROM %s""" % self.tableName)
+        self.assertEqual(self.cs.rowcount, -1)
+
+    def test_0100_callproc(self):
+        """DictCursor cs.callproc() - IN, OUT, INOUT parameters"""
+        self.cs.execute(
+            """CREATE PROCEDURE CP_TEST_1
+            (IN P1 CHAR(5), OUT P2 VARCHAR(5), INOUT P3 INTEGER)
+            LANGUAGE SQL
+            BEGIN
+                SET P2 = 'YYY';
+                SET P3 = 3;
+            END""")
+        params = ( 'XXXXX', None, 1 )
+        r = self.cs.callproc('CP_TEST_1', params)
+        self.assertNotEqual( params, r )
+        self.assertEqual( ('XXXXX', 'YYY', 3), r )
+
+    def test_0101_callproc(self):
+        """DictCursor cs.callproc() - w/ Result set"""
+        self.cs.execute("""
+            CREATE TABLE CP_TEST_TB ( P1 INTEGER )
+            """)
+
+        SIZE = 100;
+        for i in range(SIZE):
+            self.cs.execute(
+                """INSERT INTO CP_TEST_TB VALUES (?)""", i)
+
+        self.cs.execute(
+            """CREATE PROCEDURE CP_TEST_1
+            (IN P1 INTEGER)
+            LANGUAGE SQL
+            BEGIN
+                DECLARE CS1 CURSOR WITH RETURN FOR
+                    SELECT * FROM CP_TEST_TB;
+                OPEN CS1;
+            END
+            """)
+
+        r = self.cs.callproc("CP_TEST_1", 1)
+        self.assertEqual(r, (1, ))
+        rows = self.cs.fetchall()
+        self.assertEqual(len(rows), SIZE)
+        
+    def test_0102_callproc(self):
+        """DictCursor cs.callproc() - IN, OUT, INOUT parameters. Out is too short."""
+        self.cs.execute(
+            """CREATE PROCEDURE CP_TEST_1
+            (IN P1 CHAR(5), OUT P2 VARCHAR(5), INOUT P3 INTEGER)
+            LANGUAGE SQL
+            BEGIN
+                SET P2 = 'YYY';
+                SET P3 = 3;
+            END""")
+        params = ( 'XXXXX', 'AA', 1 )
+        r = self.cs.callproc('CP_TEST_1', params)
+        self.assertNotEqual( params, r )
+        self.assertEqual( ('XXXXX', 'YYY', 3), r )
+
+    def test_0103_callproc(self):
+        """DictCursor cs.callproc() - IN, OUT, INOUT parameters. Out is too long."""
+        self.cs.execute(
+            """CREATE PROCEDURE CP_TEST_1
+            (IN P1 CHAR(5), OUT P2 VARCHAR(5), INOUT P3 INTEGER)
+            LANGUAGE SQL
+            BEGIN
+                SET P2 = 'YYY';
+                SET P3 = 3;
+            END""")
+        params = ( 'XXXXX', 'AAAAAAA', 1 )
+        r = self.cs.callproc('CP_TEST_1', params)
+        self.assertNotEqual( params, r )
+        self.assertEqual( ('XXXXX', 'YYY', 3), r )
+
+    def test_0104_callproc(self):
+        """DictCursor cs.callproc() - IN, OUT, INOUT parameters. Out is wrong type."""
+        self.cs.execute(
+            """CREATE PROCEDURE CP_TEST_1
+            (IN P1 CHAR(5), OUT P2 VARCHAR(5), INOUT P3 INTEGER)
+            LANGUAGE SQL
+            BEGIN
+                SET P2 = 'YYY';
+                SET P3 = 3;
+            END""")
+        params = ( 'XXXXX', 3, 1 )
+        self.assertRaises(TypeError, self.cs.callproc, 'CP_TEST_1', params )
 
 class SimpleDB2Test_Extended(unittest.TestCase):
     def setUp(self):
@@ -658,6 +967,39 @@ class SimpleDB2Test_Extended(unittest.TestCase):
         r = self.cs.fetchone()
         self.assertEqual( r[0], None)
         
+    def test_0091_LONG_VARBINARY(self):
+        """Long varbinary"""
+        self.cs.execute("""CREATE TABLE %s (P1 LONG VARCHAR FOR BIT DATA) """ % self.tableName)
+        bits = "AA"*32700
+        self.cs.execute("""INSERT INTO %s
+                VALUES (?)
+            """ % self.tableName, bits)
+        self.cs.execute("SELECT * FROM %s" % self.tableName)
+        r = self.cs.fetchone()
+        self.assertEqual( len(r[0]), len(bits))
+        self.assertEqual( r[0], bits)
+        
+    def test_0092_VARBINARY(self):
+        """Varbinary"""
+        self.cs.execute("""CREATE TABLE %s (P1 VARCHAR(20) FOR BIT DATA) """ % self.tableName)
+        bits = "AA"*20
+        self.cs.execute("""INSERT INTO %s
+                VALUES (?)
+            """ % self.tableName, bits)
+        self.cs.execute("SELECT * FROM %s" % self.tableName)
+        r = self.cs.fetchone()
+        self.assertEqual( len(r[0]), len(bits))
+        self.assertEqual( r[0], bits)
+        
+    def test_0093_VARBINARY_OVERFLOW(self):
+        """Varbinary overflow"""
+        self.cs.execute("""CREATE TABLE %s (P1 VARCHAR(20) FOR BIT DATA) """ % self.tableName)
+        bits = "AA"*21
+        self.assertRaises(DB2.ProgrammingError, self.cs.execute, """INSERT INTO %s
+                    VALUES (?)
+                    """ % self.tableName, bits)
+        
+        
 class SimpleDB2Test_Regression(unittest.TestCase):
     def setUp(self):
         self.db = DB2.connect(**Config.ConnDict)
@@ -692,6 +1034,7 @@ if __name__ == '__main__':
     for t in [
             SimpleDB2Test_Connection,
             SimpleDB2Test_Cursor,
+            SimpleDB2Test_DictCursor,
             SimpleDB2Test_Extended,
             SimpleDB2Test_Regression,
         ]:
