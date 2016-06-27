@@ -79,7 +79,7 @@ def find_db2libdir():
     # the library directory is either lib32 or lib64. According to some, a
     # "lib" symlink should point to the appropriate dir, but it certainly
     # doesn't in the installs I've seen...
-    for path in ['lib', 'lib32', 'lib64']:
+    for path in ['lib', 'lib64', 'lib32' ]:
         if os.path.exists(os.path.join(db2rootdir, path)):
             return os.path.join(db2rootdir, path)
     # Give up noisily
